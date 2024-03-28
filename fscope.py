@@ -141,4 +141,4 @@ def AL2D(Ts,Tc,R0,C=e**2/(16*hbar)):
     Returns:
         array: Sheet resistance in Ohms.
     """
-    return 1/(1/R0 + C/np.log(Ts/Tc))
+    return 1/(1/R0 + C/np.log(Ts/Tc)) * np.heaviside(Ts-Tc,0)
