@@ -26,7 +26,8 @@ def fscope_full_func(params):
             See the FSCOPE documentation for a list of possible parameters.
         
     Returns:
-        list: A list of the paraconductivity values for the given parameters.
+        list: A list of the paraconductivity values for the given parameters:
+        t, h, SC, sigma_AL, sigma_MTsum, sigma_MTint, sigma_DOS, sigma_DCR, sigma_tot
     """
     if isinstance(params, dict):
         params = [f'{k}={v}' for k,v in params.items()]
@@ -48,7 +49,8 @@ def fscope_delta(T,Tc,tau,delta):
                        paramaterises the strength of the phase breaking
 
     Returns:
-        float: The paraconductivity value for the given parameters.
+        list: A list of the paraconductivity values for the given parameters:
+        SC, sigma_AL, sigma_MTsum, sigma_MTint, sigma_DOS, sigma_DCR, sigma_tot
     """
     t=T/Tc
     Tc0tau=Tc*tau*k/hbar
@@ -80,9 +82,13 @@ def fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha=-1):
         alpha (float): power law exponent for the temperature dependence of delta.
     
     Returns:
-        array: The resistance values in Ohms for the given temperatures.
+        tuple:
+            array: The resistance in Ohms for each temperature.
+            array: The paraconductivity values for each temperature:
+                SC, sigma_AL, sigma_MTsum, sigma_MTint, sigma_DOS, sigma_DCR, sigma_tot
+
     """
-    results = np.zeros((len(Ts),7))
+    results = np.zeros((7,len(Ts)))
     deltas=delta0*Ts**(-alpha-1)
     n=len(Ts)
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -91,17 +97,17 @@ def fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha=-1):
             futures[i] = executor.submit(lambda x: fscope_delta(x,Tc,tau,deltas[i]), Ts[i])
             time.sleep(0.001)
     for i, future in enumerate(futures):
-        results[i,:] = future.result()
+        results[:,i] = future.result()
         time.sleep(0.001)
     conversion = e**2/hbar
     sigma0=1/R0
     tauphi = pi*hbar/(8*k*Ts*deltas)
-    R = results[:,0]/(sigma0 + weak_localisation(tau,tauphi) + results[:,6]*conversion)
+    R = results[0,:]/(sigma0 + weak_localisation(tau,tauphi) + results[6,:]*conversion)
     return R, results
 
 def fscope_delta_wrapped_fit(Ts,Tc,tau,delta0,R0,alpha=-1):
     """Calculate the resistance vs temperature for given parameters.
-    Only return R for use in scipy.optimize.curve_fit.
+    Only return resistance for each temperature for use in scipy.optimize.curve_fit.
     See fscope_delta_wrapped for more details.
     """
     return fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha)[0]
