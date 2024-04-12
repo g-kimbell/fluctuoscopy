@@ -97,7 +97,14 @@ def fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha=-1):
     sigma0=1/R0
     tauphi = pi*hbar/(8*k*Ts*deltas)
     R = results[:,0]/(sigma0 + weak_localisation(tau,tauphi) + results[:,6]*conversion)
-    return R
+    return R, results
+
+def fscope_delta_wrapped_fit(Ts,Tc,tau,delta0,R0,alpha=-1):
+    """Calculate the resistance vs temperature for given parameters.
+    Only return R for use in scipy.optimize.curve_fit.
+    See fscope_delta_wrapped for more details.
+    """
+    return fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha)[0]
 
 def weak_localisation(tau,tauphi):
     """Calculates the weak localisation correction to the conductance.
