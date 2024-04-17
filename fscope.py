@@ -16,6 +16,7 @@ import time
 import subprocess
 import concurrent.futures
 import numpy as np
+import pandas as pd
 from scipy.constants import pi,hbar,k,e,m_e
 
 def fscope_full_func(params):
@@ -105,6 +106,10 @@ def fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha=-1):
     results[:7,:] *= conversion
     results[7,:] = weak_localisation(tau,tauphi)
     R = results[0,:]/(sigma0 + results[7,:] + results[6,:])
+    # give column names to the results array
+    results = pd.DataFrame(results.T,columns=['SC', 'AL', 'MTsum', 'MTint', 'DOS', 'DCR', 'Fluctuation_tot', 'WL'])
+    results["MT"]=results["MTsum"]+results["MTint"]
+    results["Total"]=results["Fluctuation_tot"]+results["WL"]
     return R, results
 
 def fscope_delta_wrapped_fit(Ts,Tc,tau,delta0,R0,alpha=-1):
