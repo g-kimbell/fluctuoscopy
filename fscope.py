@@ -88,7 +88,7 @@ def fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha=-1):
                 SC, sigma_AL, sigma_MTsum, sigma_MTint, sigma_DOS, sigma_DCR, sigma_tot
 
     """
-    results = np.zeros((7,len(Ts)))
+    results = np.zeros((8,len(Ts)))
     deltas=delta0*Ts**(-alpha-1)
     n=len(Ts)
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -97,12 +97,14 @@ def fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha=-1):
             futures[i] = executor.submit(lambda x: fscope_delta(x,Tc,tau,deltas[i]), Ts[i])
             time.sleep(0.001)
     for i, future in enumerate(futures):
-        results[:,i] = future.result()
+        results[0:7,i] = future.result()
         time.sleep(0.001)
     conversion = e**2/hbar
     sigma0=1/R0
     tauphi = pi*hbar/(8*k*Ts*deltas)
-    R = results[0,:]/(sigma0 + weak_localisation(tau,tauphi) + results[6,:]*conversion)
+    results[:7,:] *= conversion
+    results[7,:] = weak_localisation(tau,tauphi)
+    R = results[0,:]/(sigma0 + results[7,:] + results[6,:])
     return R, results
 
 def fscope_delta_wrapped_fit(Ts,Tc,tau,delta0,R0,alpha=-1):
