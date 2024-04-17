@@ -1,4 +1,5 @@
-"""This module provides functions to calculate the fluctuation conductivity of a 2-dimensional
+"""
+This module provides functions to calculate the fluctuation conductivity of a 2-dimensional
 superconductor in the absence of magnetic field using the FSCOPE C++ program. The functions are 
 multi-threaded and wrapped in a way that allows easier use of e.g. least squares fitting algorithms.
 
@@ -8,9 +9,10 @@ device.
 
 The module requires the FSCOPE program to be compiled and placed in the same directory as this file.
 
-The most important function is 'fscope_delta_wrapped', which calculates the resistance of a
-superconductor as a function of temperature, critical temperature, normal state resistance, elastic
-scattering time and a power law exponent for the temperature dependence of the phase breaking time.
+The most important function is 'fscope_delta_wrapped', which calculates the resistance and all
+contributions to conductivity of a superconductor for an array of temperatures, given a critical
+temperature, normal state resistance, elastic scattering time and a power law exponent for the 
+temperature dependence of the phase breaking time.
 """
 import time
 import subprocess
@@ -20,14 +22,19 @@ import pandas as pd
 from scipy.constants import pi,hbar,k,e,m_e
 
 def fscope_full_func(params):
-    """Calculates the paraconductivity of a superconductor using the FSCOPE program.
+    """
+    Calculates the paraconductivity of a superconductor using the FSCOPE program.
     
-    Args:
-        params (dict or list): parameters to be passed to the FSCOPE program.
-            See the FSCOPE documentation for a list of possible parameters.
+    Parameters
+    ----------
+    params : dict or list
+        Parameters to be passed to the FSCOPE program.
+        See the FSCOPE documentation for a list of possible parameters.
         
-    Returns:
-        list: A list of the paraconductivity values for the given parameters:
+    Returns
+    -------
+    list
+        A list of the paraconductivity values for the given parameters:
         t, h, SC, sigma_AL, sigma_MTsum, sigma_MTint, sigma_DOS, sigma_DCR, sigma_tot
     """
     if isinstance(params, dict):
@@ -39,18 +46,26 @@ def fscope_full_func(params):
     return answer
 
 def fscope_delta(T,Tc,tau,delta):
-    """Calculates the different components of fluctuation conductivity for one temperature with
-    given parameters.
+    """
+    Calculates the different components of fluctuation conductivity for one temperature with given 
+    parameters.
 
-    Args:
-        T (float): temperature in Kelvin.
-        Tc (float): critical temperature in Kelvin.
-        tau (float): elastic scattering time in seconds.
-        delta (float): delta = pi * hbar / (8 * kB * T * tau_phi)
-                       paramaterises the strength of the phase breaking
+    Parameters
+    ----------
+    T : float
+        Temperature in Kelvin.
+    Tc : float
+        Critical temperature in Kelvin.
+    tau : float
+        Elastic scattering time in seconds.
+    delta : float
+        Delta = pi * hbar / (8 * kB * T * tau_phi)
+        Parameterises the strength of the phase breaking
 
-    Returns:
-        list: A list of the paraconductivity values for the given parameters:
+    Returns
+    -------
+    list
+        A list of the paraconductivity values for the given parameters:
         SC, sigma_AL, sigma_MTsum, sigma_MTint, sigma_DOS, sigma_DCR, sigma_tot
     """
     t=T/Tc
@@ -68,26 +83,34 @@ def fscope_delta(T,Tc,tau,delta):
     return fscope_full_func(params)[2:]
 
 def fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha=-1):
-    """Calculate the resistance vs temperature for given parameters.
+    """
+    Calculate the resistance vs temperature for given parameters.
+
     tau_phi is given by tau_phi0 * T^alpha, with the default exponent being -1.
     delta is then calculated as delta = pi * hbar / (8 * kB * T * tau_phi^alpha)
     delta0 is the value of delta at T = 1 K (i.e. delta0 = pi * hbar / (8 * kB * tau_phi0))
-    
-    Args:
-        Ts (array): temperatures in K.
-        Tc (float): critical temperature in K.
-        tau (float): elastic scattering time in s.
-        delta0 (float): pi * hbar / (8 * kB * 1 * tau_phi)
-                        i.e the delta value at T = 1 K
-        R0 (float): normal state resistance in Ohms.
-        alpha (float): power law exponent for the temperature dependence of delta.
-    
-    Returns:
-        tuple:
-            array: The resistance in Ohms for each temperature.
-            array: The paraconductivity values for each temperature:
-                SC, sigma_AL, sigma_MTsum, sigma_MTint, sigma_DOS, sigma_DCR, sigma_tot
 
+    Parameters
+    ----------
+    Ts : array
+        Temperatures in K.
+    Tc : float
+        Critical temperature in K.
+    tau : float
+        Elastic scattering time in s.
+    delta0 : float
+        pi * hbar / (8 * kB * 1 * tau_phi), i.e the delta value at T = 1 K.
+    R0 : float
+        Normal state resistance in Ohms.
+    alpha : float
+        Power law exponent for the temperature dependence of delta.
+
+    Returns
+    -------
+    R : array
+        An array of the resistance in Ohms for each temperature.
+    results : DataFrame
+        A DataFrame of components of the fluctuation conductivity and weak localisation for each temperature.
     """
     results = np.zeros((8,len(Ts)))
     deltas=delta0*Ts**(-alpha-1)
@@ -112,53 +135,69 @@ def fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha=-1):
     results["Total"]=results["Fluctuation_tot"]+results["WL"]
     return R, results
 
-def fscope_delta_wrapped_fit(Ts,Tc,tau,delta0,R0,alpha=-1):
-    """Calculate the resistance vs temperature for given parameters.
-    Only return resistance for each temperature for use in scipy.optimize.curve_fit.
-    See fscope_delta_wrapped for more details.
-    """
-    return fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha)[0]
-
 def weak_localisation(tau,tauphi):
-    """Calculates the weak localisation correction to the conductance.
-    
-    Args:
-        tau (float): elastic scattering time in s.
-        tauphi (array): phase breaking time in s.
-    
-    Returns:
-        array: The correction to conductance in Siemens (Ohms^-1).
+    """
+    Calculates the weak localisation correction to the conductance.
+
+    Parameters
+    ----------
+    tau : float
+        Elastic scattering time in s.
+    tauphi : array
+        Phase breaking time in s.
+
+    Returns
+    -------
+    array
+        The correction to conductance in Siemens (Ohms^-1).
     """
     dG = -e**2/(2*pi**2*hbar)*np.log(tauphi/tau)
     return dG
 
 def calc_tau(relative_effective_mass,RN,Vg,Vg_n,n):
-    """Calculates the elastic scattering time for a given backgate voltage.
+    """
+    Calculates the elastic scattering time for a given backgate voltage.
 
-    Args:
-        relative_effective_mass (float): effective mass / electron rest mass.
-        RN (float): normal state resistance in Ohms.
-        Vg (float): backgate voltage in V.
-        Vg_n (array): backgate voltages of measured carrier density in V.
-        n (array): carrier densities in m^-2.
+    Parameters
+    ----------
+    relative_effective_mass : float
+        Effective mass / electron rest mass.
+    RN : float
+        Normal state resistance in Ohms.
+    Vg : float
+        Backgate voltage in V.
+    Vg_n : array
+        Backgate voltages of measured carrier density in V.
+    n : array
+        Carrier densities in m^-2.
 
-    Returns:
-        float: The elastic scattering time in seconds.
+    Returns
+    -------
+    float
+        The elastic scattering time in seconds.
     """
     n_interpolated = np.interp(Vg,Vg_n,n)
     tau = relative_effective_mass*m_e/(n_interpolated*RN*e**2)
     return tau
 
 def AL2D(Ts,Tc,R0,C=e**2/(16*hbar)):
-    """Aslamasov-Larkin fluctuation conductance contribution
-    
-    Args:
-        Ts (array): temperatures in Kelvin.
-        Tc (float): critical temperature in Kelvin.
-        R0 (float): normal state resistance in Ohms.
-        C (float): A physical constant of e^2/16hbar, this is sometimes varied in literature.
-    
-    Returns:
-        array: Sheet resistance in Ohms.
+    """
+    Aslamasov-Larkin fluctuation conductance contribution
+
+    Parameters
+    ----------
+    Ts : array
+        Temperatures in Kelvin.
+    Tc : float
+        Critical temperature in Kelvin.
+    R0 : float
+        Normal state resistance in Ohms.
+    C : float
+        A physical constant of e^2/16hbar, this is sometimes varied in literature.
+
+    Returns
+    -------
+    array
+        Sheet resistance in Ohms.
     """
     return 1/(1/R0 + C/np.log(Ts/Tc)) * np.heaviside(Ts-Tc,0)
