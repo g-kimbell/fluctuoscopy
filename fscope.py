@@ -126,7 +126,7 @@ def fscope_delta_wrapped(Ts,Tc,tau,delta0,R0,alpha=-1):
     conversion = e**2/hbar
     sigma0=1/R0
     tauphi = pi*hbar/(8*k*Ts*deltas)
-    results[:7,:] *= conversion
+    results[1:7,:] *= conversion
     results[7,:] = weak_localisation(tau,tauphi)
     R = results[0,:]/(sigma0 + results[7,:] + results[6,:])
     # give column names to the results array
