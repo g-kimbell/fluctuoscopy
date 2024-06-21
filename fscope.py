@@ -40,9 +40,8 @@ def fscope_full_func(params):
     if isinstance(params, dict):
         params = [f'{k}={v}' for k,v in params.items()]
     output = subprocess.check_output(['FSCOPE/FSCOPE.exe']+params)
-    answer = str(output).split('\\n')[-2][:-2]
-    answer = answer.split('\\t')
-    answer = [float(i) for i in answer]
+    lines = output.decode().splitlines()
+    answer = [float(i) for i in lines[-1].split('\t')]
     return answer
 
 def fscope_delta(T,Tc,tau,delta):
