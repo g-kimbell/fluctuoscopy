@@ -3,11 +3,9 @@ This module provides functions to calculate the fluctuation conductivity of a 2-
 superconductor in the absence of magnetic field using the FSCOPE C++ program. The functions are 
 multi-threaded and wrapped in a way that allows easier use of e.g. least squares fitting algorithms.
 
-We also include the effects of weak localization and a varying elastic scattering time with
+We also include the effects of weak (anti)localization and a varying elastic scattering time with
 backgate to simplify the common process of calculating sheet resistance in a field-effect
 device.
-
-The module requires the FSCOPE program to be compiled and placed in the same directory as this file.
 
 The most important function is 'fscope_delta_wrapped', which calculates the resistance and all
 contributions to conductivity of a superconductor for an array of temperatures, given a critical
