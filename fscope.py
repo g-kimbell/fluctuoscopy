@@ -14,13 +14,13 @@ contributions to conductivity of a superconductor for an array of temperatures, 
 temperature, normal state resistance, elastic scattering time and a power law exponent for the 
 temperature dependence of the phase breaking time.
 """
-import time
+
 import subprocess
-import concurrent.futures
+from typing import Tuple
 import numpy as np
 import pandas as pd
 from scipy.constants import pi,hbar,k,e,m_e
-from typing import Tuple
+from multiprocess import Pool
 
 def fscope_full_func(params: list|dict) -> list:
     """ Calculates the paraconductivity using the FSCOPE program
@@ -79,7 +79,8 @@ def fscope_delta_wrapped(
     tau: float,
     delta0: float,
     R0: float,
-    alpha: float = -1
+    alpha: float = -1,
+    tau_SO: float = None
 ) -> Tuple[np.ndarray, pd.DataFrame]:
     """ Calculate the resistance vs temperature for given parameters
 
@@ -95,30 +96,34 @@ def fscope_delta_wrapped(
             Parameterises the strength of the phase breaking
         R0 (float): Normal state resistance in Ohms
         alpha (float): Power law exponent for the temperature dependence of delta
+        tau_SO (float, optional): Spin-orbit scattering time in seconds, used for weak 
+            antilocalization correction
     
     Returns:
         array: Resistance in Ohms for each temperature
         DataFrame: Components of the fluctuation conductivity and weak localization for each T
     """
-    results = np.zeros((8,len(Ts)))
+    results = np.zeros((9,len(Ts)))
     deltas=delta0*Ts**(-alpha-1)
     n=len(Ts)
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = np.zeros(n,dtype=object)
-        for i in range(n):
-            futures[i] = executor.submit(lambda x: fscope_delta(x,Tc,tau,deltas[i]), Ts[i])
-            time.sleep(0.001)
-    for i, future in enumerate(futures):
-        results[0:7,i] = future.result()
-        time.sleep(0.001)
+
+    def fscope_delta_wrapper(args):
+        x, Tc, tau, delta = args
+        return fscope_delta(x, Tc, tau, delta)
+    with Pool() as pool:
+        args_list = [(Ts[i], Tc, tau, deltas[i]) for i in range(n)]
+        results_list = pool.map(fscope_delta_wrapper, args_list)
+    results[0:7, :] = np.array(results_list).T
     conversion = e**2/hbar
     sigma0=1/R0
     tau_phi = pi*hbar/(8*k*Ts*deltas)
     results[1:7,:] *= conversion # convert to Siemens
     results[7,:] = weak_localization(tau,tau_phi)
-    R = results[0,:]/(sigma0 + results[7,:] + results[6,:])
+    if tau_SO:
+        results[8,:] = weak_antilocalization(tau_SO,tau_phi)
+    R = results[0,:]/(sigma0 + results[6,:] + results[7,:] + results[8,:])
     # give column names to the results array
-    results = pd.DataFrame(results.T,columns=['SC', 'AL', 'MTsum', 'MTint', 'DOS', 'DCR', 'Fluctuation_tot', 'WL'])
+    results = pd.DataFrame(results.T,columns=['SC', 'AL', 'MTsum', 'MTint', 'DOS', 'DCR', 'Fluctuation_tot', 'WL', 'WAL'])
     results["MT"]=results["MTsum"]+results["MTint"]
     results["Total"]=results["Fluctuation_tot"]+results["WL"]
     return R, results
