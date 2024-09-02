@@ -3,7 +3,7 @@ This module provides functions to calculate the fluctuation conductivity of a 2-
 superconductor in the absence of magnetic field using the FSCOPE C++ program. The functions are 
 multi-threaded and wrapped in a way that allows easier use of e.g. least squares fitting algorithms.
 
-We also include the effects of weak localisation and a varying elastic scattering time with
+We also include the effects of weak localization and a varying elastic scattering time with
 backgate to simplify the common process of calculating sheet resistance in a field-effect
 device.
 
@@ -98,7 +98,7 @@ def fscope_delta_wrapped(
     
     Returns:
         array: Resistance in Ohms for each temperature
-        DataFrame: Components of the fluctuation conductivity and weak localisation for each T
+        DataFrame: Components of the fluctuation conductivity and weak localization for each T
     """
     results = np.zeros((8,len(Ts)))
     deltas=delta0*Ts**(-alpha-1)
@@ -113,9 +113,9 @@ def fscope_delta_wrapped(
         time.sleep(0.001)
     conversion = e**2/hbar
     sigma0=1/R0
-    tauphi = pi*hbar/(8*k*Ts*deltas)
+    tau_phi = pi*hbar/(8*k*Ts*deltas)
     results[1:7,:] *= conversion # convert to Siemens
-    results[7,:] = weak_localisation(tau,tauphi)
+    results[7,:] = weak_localization(tau,tau_phi)
     R = results[0,:]/(sigma0 + results[7,:] + results[6,:])
     # give column names to the results array
     results = pd.DataFrame(results.T,columns=['SC', 'AL', 'MTsum', 'MTint', 'DOS', 'DCR', 'Fluctuation_tot', 'WL'])
@@ -123,17 +123,33 @@ def fscope_delta_wrapped(
     results["Total"]=results["Fluctuation_tot"]+results["WL"]
     return R, results
 
-def weak_localisation(tau: float, tauphi: np.ndarray) -> np.ndarray:
-    """ Calculates the weak localisation correction to the conductance
+def weak_localization(tau: float, tau_phi: np.ndarray) -> np.ndarray:
+    """ Calculates the weak localization correction to the conductance
 
     Args:
         tau (float): Elastic scattering time in seconds
-        tauphi (array): Phase breaking time in seconds
+        tau_phi (array): Phase breaking time in seconds
     
     Returns:
         array: The correction to conductance in Siemens (Ohms^-1)
     """
-    dG = -e**2/(2*pi**2*hbar)*np.log(tauphi/tau)
+    dG = -e**2/(2*pi**2*hbar)*np.log(tau_phi/tau)
+    return dG
+
+def weak_antilocalization(tau_SO: float, tau_phi: np.ndarray) -> np.ndarray:
+    """ Calculates the weak antilocalization correction to the conductance
+
+    Args:
+        tau_SO (float): Spin-orbit scattering time in seconds
+        tau_phi (array): Phase breaking time in seconds
+    
+    Returns:
+        array: The correction to conductance in Siemens (Ohms^-1)
+    """
+    dG = e**2/(2*pi**2*hbar)*np.log(
+        (1+tau_phi/tau_SO) *
+        (1+2*tau_phi/tau_SO)**0.5
+    )
     return dG
 
 def calc_tau(
