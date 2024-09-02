@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from fluctuoscopy.fscope import AL2D, calc_tau, weak_localization, weak_antilocalization, fscope_full_func, fscope_delta_wrapped
+from fluctuoscopy.fluctuosco import AL2D, calc_tau, weak_localization, weak_antilocalization, fscope_full_func, fscope_delta_wrapped
 
 e = 1.60217662e-19
 m_e = 9.10938356e-31
