@@ -56,9 +56,8 @@ def fscope_full_func(params: list|dict) -> list:
     if isinstance(params, dict):
         params = [f'{k}={v}' for k,v in params.items()]
     output = subprocess.check_output([FSCOPE_EXECUTABLE]+params)
-    lines = output.decode().splitlines()
-    answer = [float(i) for i in lines[-1].split('\t')]
-    return answer
+    output_decoded = output.decode().splitlines()
+    return output_decoded
 
 def fscope_delta(T: float, Tc: float, tau: float, delta: float) -> list:
     """ Calculates fluctuation conductivity components for one temperature
@@ -86,7 +85,9 @@ def fscope_delta(T: float, Tc: float, tau: float, delta: float) -> list:
               f'Tc0tau={Tc0tau}',
               f'delta={delta}'
     ]
-    return fscope_full_func(params)[2:]
+    output = fscope_full_func(params)
+    result = [float(i) for i in output[-1].split('\t')]
+    return result[2:]
 
 def fscope_delta_wrapped(
     Ts: np.ndarray,
