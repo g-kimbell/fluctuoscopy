@@ -16,11 +16,26 @@ temperature dependence of the phase breaking time.
 """
 
 import subprocess
+import os
+import platform
 from typing import Tuple
 import numpy as np
 import pandas as pd
 from scipy.constants import pi,hbar,k,e,m_e
 from multiprocess import Pool
+
+def get_fscope_executable() -> str:
+    system = platform.system()
+    # if system == 'Linux':
+    #     return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_linux')
+    # if system == 'Darwin':
+    #     return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_mac')
+    if system == 'Windows':
+        return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_windows.exe')
+    raise RuntimeError(f"Unsupported operating system: {system}")
+
+# Get the path to the FSCOPE executable once at import time
+FSCOPE_EXECUTABLE = get_fscope_executable()
 
 def fscope_full_func(params: list|dict) -> list:
     """ Calculates the paraconductivity using the FSCOPE program
@@ -40,7 +55,7 @@ def fscope_full_func(params: list|dict) -> list:
     """
     if isinstance(params, dict):
         params = [f'{k}={v}' for k,v in params.items()]
-    output = subprocess.check_output(['FSCOPE/FSCOPE.exe']+params)
+    output = subprocess.check_output([FSCOPE_EXECUTABLE]+params)
     lines = output.decode().splitlines()
     answer = [float(i) for i in lines[-1].split('\t')]
     return answer
