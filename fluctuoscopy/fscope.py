@@ -20,18 +20,23 @@ import os
 import platform
 from typing import Tuple
 import numpy as np
-import pandas as pd
-from scipy.constants import pi,hbar,k,e,m_e
 from multiprocess import Pool
+
+pi = np.pi
+hbar=1.0545718176461565e-34
+k=1.380649e-23
+e=1.602176634e-19
+m_e=9.1093837015e-31
 
 def get_fscope_executable() -> str:
     system = platform.system()
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     # if system == 'Linux':
     #     return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_linux')
     # if system == 'Darwin':
     #     return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_mac')
     if system == 'Windows':
-        return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_windows.exe')
+        return os.path.join(base_dir, 'bin', 'FSCOPE_windows.exe')
     raise RuntimeError(f"Unsupported operating system: {system}")
 
 # Get the path to the FSCOPE executable once at import time
@@ -53,6 +58,7 @@ def fscope_full_func(params: list|dict) -> list:
             the density of states contribution, DCR is the diffusion correction renormalisation
             contribution, and tot is the total fluctuation conductivity.
     """
+    print(FSCOPE_EXECUTABLE)
     if isinstance(params, dict):
         params = [f'{k}={v}' for k,v in params.items()]
     output = subprocess.check_output([FSCOPE_EXECUTABLE]+params)
@@ -97,7 +103,7 @@ def fscope_delta_wrapped(
     R0: float,
     alpha: float = -1,
     tau_SO: float = None
-) -> Tuple[np.ndarray, pd.DataFrame]:
+) -> Tuple[np.ndarray, dict]:
     """ Calculate the resistance vs temperature for given parameters
 
     tau_phi is given by tau_phi0 * T^alpha, with the default exponent being -1
@@ -117,7 +123,7 @@ def fscope_delta_wrapped(
     
     Returns:
         array: Resistance in Ohms for each temperature
-        DataFrame: Components of the fluctuation conductivity and weak localization for each T
+        dict: Components of the fluctuation conductivity and weak localization for each T
     """
     results = np.zeros((9,len(Ts)))
     deltas=delta0*Ts**(-alpha-1)
@@ -139,10 +145,20 @@ def fscope_delta_wrapped(
         results[8,:] = weak_antilocalization(tau_SO,tau_phi)
     R = results[0,:]/(sigma0 + results[6,:] + results[7,:] + results[8,:])
     # give column names to the results array
-    results = pd.DataFrame(results.T,columns=['SC', 'AL', 'MTsum', 'MTint', 'DOS', 'DCR', 'Fluctuation_tot', 'WL', 'WAL'])
-    results["MT"]=results["MTsum"]+results["MTint"]
-    results["Total"]=results["Fluctuation_tot"]+results["WL"]
-    return R, results
+    results_dict = {
+        'SC': results[0],
+        'AL': results[1],
+        'MTsum': results[2],
+        'MTint': results[3],
+        'DOS': results[4],
+        'DCR': results[5],
+        'Fluctuation_tot': results[6],
+        'WL': results[7],
+        'WAL': results[8]
+    }
+    results_dict["MT"] = results_dict["MTsum"] + results_dict["MTint"]
+    results_dict["Total"] = results_dict["Fluctuation_tot"] + results_dict["WL"]
+    return R, results_dict
 
 def weak_localization(tau: float, tau_phi: np.ndarray) -> np.ndarray:
     """ Calculates the weak localization correction to the conductance
