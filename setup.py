@@ -14,7 +14,7 @@ setup(
         ],
     },
     package_data={
-        'fscope': ['bin/*'],
+        'fluctuoscopy': ['bin/*'],
     },
     author='Graham Kimbell',
     description='A Python wrapper with additional helper functions for the FSCOPE program, written by Andreas Glatz',
