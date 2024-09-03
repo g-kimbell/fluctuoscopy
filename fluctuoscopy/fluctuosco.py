@@ -1,16 +1,12 @@
 """
-This module provides functions to calculate the fluctuation conductivity of a 2-dimensional
-superconductor in the absence of magnetic field using the FSCOPE C++ program. The functions are 
-multi-threaded and wrapped in a way that allows easier use of e.g. least squares fitting algorithms.
+This module provides a python interface to the FSCOPE program, which calculates fluctuation
+conductivity components in superconductors under various conditions.
 
-We also include the effects of weak (anti)localization and a varying elastic scattering time with
-backgate to simplify the common process of calculating sheet resistance in a field-effect
-device.
+The most important function is fscope, which takes a dictionary of parameters and returns a
+dictionary of the output from the FSCOPE program.
 
-The most important function is 'fscope_delta_wrapped', which calculates the resistance and all
-contributions to conductivity of a superconductor for an array of temperatures, given a critical
-temperature, normal state resistance, elastic scattering time and a power law exponent for the 
-temperature dependence of the phase breaking time.
+We also include a parallelised function for calculating fluctuation conductivity components
+in the absence of magnetic field, as well as functions for weak (anti)localization corrections.
 """
 
 import subprocess
@@ -49,19 +45,51 @@ def fscope_full_func(params: list|dict) -> list:
             See the FSCOPE documentation for a list of possible parameters
     
     Returns:
-        list: SC, sigma_AL, sigma_MTsum, sigma_MTint, sigma_DOS, sigma_DCR, sigma_tot
-            SC is 0 or 1 for superconducting or normal state, sigma is the conductivity contribution
-            in units of e^2/hbar, AL is the Aslamasov-Larkin contribution, MTsum and MTint are the
-            contributions from the sum and integral parts of the Maki-Thompson contribution, DOS is
-            the density of states contribution, DCR is the diffusion correction renormalisation
-            contribution, and tot is the total fluctuation conductivity.
+        list: lines of output from the FSCOPE program
     """
-    print(FSCOPE_EXECUTABLE)
     if isinstance(params, dict):
         params = [f'{k}={v}' for k,v in params.items()]
     output = subprocess.check_output([FSCOPE_EXECUTABLE]+params)
     output_decoded = output.decode().splitlines()
     return output_decoded
+
+def fscope(params: list|dict = None) -> dict:
+    """ Calculates the paraconductivity using the FSCOPE program
+
+    Args:
+        params (dict or list):
+            Parameters to be passed to the FSCOPE program
+            See the FSCOPE documentation for a list of possible parameters
+            Or run without parameters to see the usage message
+
+    Returns:
+        dict: Dictionary of the output from the FSCOPE program, with header
+            and separate data columns
+    """
+    if params is None:
+        params = {}
+    output = fscope_full_func(params)
+    if 'FLUCTUOSCOPE' in output[0]:
+        message = [
+            "Usage of fluctuoscopy, using FLUCTUOSCOPE version 2.1:",
+            "Add params to the function as a dictionary (or list of strings) using the following keys:",
+        ] + output[5:]
+        message = "\n".join(message)
+        raise ValueError(message)
+    result = {}
+    header = []
+    data = []
+    for line in output:
+        if line.startswith('#'):
+            header += [line.strip('#')]
+        else:
+            data += [[float(n) for n in line.split('\t')]]
+    col_names = header[-1].split('\t')
+    data = np.array(data).T
+    result['header'] = header[:-1]
+    for col_name, col_data in zip(col_names, data):
+        result[col_name] = col_data
+    return result
 
 def fscope_delta(T: float, Tc: float, tau: float, delta: float) -> list:
     """ Calculates fluctuation conductivity components for one temperature
@@ -75,7 +103,11 @@ def fscope_delta(T: float, Tc: float, tau: float, delta: float) -> list:
 
     Returns:
         list: SC, sigma_AL, sigma_MTsum, sigma_MTint, sigma_DOS, sigma_DCR, sigma_tot
-            in units of e^2/hbar, see fscope_full_func for a description of the components
+            SC is 0 or 1 for superconducting or normal state, sigma is the conductivity contribution
+            in units of e^2/hbar, AL is the Aslamasov-Larkin contribution, MTsum and MTint are the
+            contributions from the sum and integral parts of the Maki-Thompson contribution, DOS is
+            the density of states contribution, DCR is the diffusion correction renormalisation
+            contribution, and tot is the total fluctuation conductivity.
     """
     t=T/Tc
     Tc0tau=Tc*tau*k/hbar
