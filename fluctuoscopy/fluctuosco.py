@@ -25,8 +25,8 @@ m_e=9.1093837015e-31
 def get_fscope_executable() -> str:
     system = platform.system()
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    # if system == 'Linux':
-    #     return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_linux')
+    if system == 'Linux':
+        return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_linux')
     # if system == 'Darwin':
     #     return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_mac')
     if system == 'Windows':
