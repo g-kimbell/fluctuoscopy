@@ -1,4 +1,7 @@
-# fluctuosco*py*
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/8bf0686c-e963-4169-ada5-9598d3949553" width="500" align="center" alt="fluctuoscopy">
+</p>
+
 A python wrapper for the C++ [FSCOPE](https://github.com/andreasglatz/FSCOPE) program written by [Andreas Glatz](https://github.com/andreasglatz), for calculating conductivity contributions of superconducting fluctuations.
 
 ## Installation
