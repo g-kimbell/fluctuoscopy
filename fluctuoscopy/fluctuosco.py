@@ -12,7 +12,7 @@ in the absence of magnetic field, as well as functions for weak (anti)localizati
 import subprocess
 import os
 import platform
-from typing import Tuple
+from typing import Tuple, Union
 import numpy as np
 from multiprocess import Pool
 
@@ -36,7 +36,7 @@ def get_fscope_executable() -> str:
 # Get the path to the FSCOPE executable once at import time
 FSCOPE_EXECUTABLE = get_fscope_executable()
 
-def fscope_full_func(params: list|dict) -> list:
+def fscope_full_func(params: Union[list,dict]) -> list:
     """ Calculates the paraconductivity using the FSCOPE program
 
     Args:
@@ -53,7 +53,7 @@ def fscope_full_func(params: list|dict) -> list:
     output_decoded = output.decode().splitlines()
     return output_decoded
 
-def fscope(params: list|dict = None) -> dict:
+def fscope(params: Union[list,dict] = None) -> dict:
     """ Calculates the paraconductivity using the FSCOPE program
 
     Args:
@@ -72,7 +72,7 @@ def fscope(params: list|dict = None) -> dict:
     if 'FLUCTUOSCOPE' in output[0]:
         message = [
             "Usage of fluctuoscopy, using FLUCTUOSCOPE version 2.1:",
-            "Add params to the function as a dictionary (or list of strings) using the following keys:",
+            "Add params to the function as a dictionary using the following keys:",
         ] + output[5:]
         message = "\n".join(message)
         raise ValueError(message)
@@ -111,15 +111,16 @@ def fscope_delta(T: float, Tc: float, tau: float, delta: float) -> list:
     """
     t=T/Tc
     Tc0tau=Tc*tau*k/hbar
-    params = ['ctype=100',
-              f'tmin={t}',
-              'dt=0.0',
-              'Nt=1',
-              'hmin=0.01',
-              'dh=0.1',
-              'Nh=1',
-              f'Tc0tau={Tc0tau}',
-              f'delta={delta}'
+    params = [
+        'ctype=100',
+        f'tmin={t}',
+        'dt=0.0',
+        'Nt=1',
+        'hmin=0.01',
+        'dh=0.1',
+        'Nh=1',
+        f'Tc0tau={Tc0tau}',
+        f'delta={delta}'
     ]
     output = fscope_full_func(params)
     result = [float(i) for i in output[-1].split('\t')]
