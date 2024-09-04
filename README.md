@@ -10,9 +10,9 @@ Clone the repo, navigate to its directory and use
 ```
 pip install .
 ```
-To include testing use:
+To run tests, inside the repo directory use
 ```
-pip install .[dev]
+pip install pytest
 pytest
 ```
 
