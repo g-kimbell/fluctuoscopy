@@ -3,6 +3,7 @@ from .fluctuosco import *
 __all__ = [
     'fscope_full_func',
     'fscope',
+    'fscope_parallel',
     'fscope_delta',
     'fscope_delta_wrapped',
     'weak_localization',

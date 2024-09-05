@@ -1,6 +1,15 @@
 import unittest
 import numpy as np
-from fluctuoscopy.fluctuosco import AL2D, calc_tau, weak_localization, weak_antilocalization, fscope_full_func, fscope_delta_wrapped
+from fluctuoscopy.fluctuosco import (
+    fscope_full_func,
+    fscope,
+    fscope_parallel,
+    fscope_delta_wrapped,
+    weak_localization,
+    weak_antilocalization,
+    calc_tau,
+    AL2D,
+)
 
 e = 1.60217662e-19
 m_e = 9.10938356e-31
@@ -9,23 +18,21 @@ pi = np.pi
 
 class TestFscopeFullFunc(unittest.TestCase):
     def test_fscope_full_func_empty(self):
-        result = fscope_full_func({})
-        self.assertIsInstance(result,list)
-        self.assertGreater(len(result),0)
-        self.assertIn('FLUCTUOSCOPE',result[0])
+        with self.assertRaises(ValueError):
+            fscope_full_func({})
 
     def test_fscope_full_func_basic(self):
-        params = [
-            'ctype=100',
-            'tmin=2',
-            'dt=0',
-            'Nt=1',
-            'hmin=0.01',
-            'dh=0',
-            'Nh=1',
-            'Tc0tau=1e-2',
-            'delta=1e-3'
-        ]
+        params = {
+            'ctype': 100,
+            'tmin': 2,
+            'dt': 0,
+            'Nt': 1,
+            'hmin': 0.01,
+            'dh': 0,
+            'Nh': 1,
+            'Tc0tau': 1e-2,
+            'delta': 1e-3
+        }
         output = fscope_full_func(params)
         result = [float(r) for r in output[-1].split('\t')]
         expected = [
@@ -33,6 +40,103 @@ class TestFscopeFullFunc(unittest.TestCase):
             -0.015732975271415026, 0.0030605431719476525, 0.37297060327361997
         ]
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
+
+class TestFscope(unittest.TestCase):
+    def test_fscope_empty(self):
+        with self.assertRaises(ValueError):
+            fscope({})
+
+    def test_fscope_basic(self):
+        params = {
+            'ctype': 100,
+            'tmin': 2,
+            'dt': 0,
+            'Nt': 1,
+            'hmin': 0.01,
+            'dh': 0,
+            'Nh': 1,
+            'Tc0tau': 1e-2,
+            'delta': 1e-3
+        }
+        result = fscope(params)
+        expected = { # ignore header
+            't': np.array([2.]),
+            'h': np.array([0.01]),
+            'SC': np.array([1.]),
+            'sAL': np.array([0.01365203]),
+            'sMTsum': np.array([-0.04670521]),
+            'sMTint': np.array([0.41869621]),
+            'sDOS': np.array([-0.01573298]),
+            'sDCR': np.array([0.00306054]),
+            'sigma': np.array([0.3729706])
+        }
+        for key in expected:
+            np.testing.assert_array_almost_equal(result[key], expected[key], decimal=6)
+
+class TestFscopeParallel(unittest.TestCase):
+    def test_fscope_parallel_empty(self):
+        with self.assertRaises(ValueError):
+            fscope_parallel({})
+
+    def test_fscope_equals_fscope_parallel(self):
+        params = {
+            'ctype': 100,
+            'tmin': 2,
+            'dt': 0,
+            'Nt': 1,
+            'hmin': 0.01,
+            'dh': 0,
+            'Nh': 1,
+            'Tc0tau': 1e-2,
+            'delta': 1e-3
+        }
+        result = fscope(params)
+        result_parallel = fscope_parallel(params)
+        for key in result:
+            if key != 'header':
+                np.testing.assert_array_almost_equal(result[key], result_parallel[key], decimal=6)
+
+    def test_fscope_parallel_basic(self):
+        params = {
+            'ctype': 100,
+            'tmin': [2,2.1,2.2],
+            'dt': 0,
+            'Nt': 1,
+            'hmin': 0.01,
+            'dh': 0,
+            'Nh': 1,
+            'Tc0tau': 1e-2,
+            'delta': 1e-3
+        }
+        result = fscope_parallel(params)
+        expected = {
+            't': np.array([2. , 2.1, 2.2]),
+            'h': np.array([0.01, 0.01, 0.01]),
+            'SC': np.array([1., 1., 1.]),
+            'sAL': np.array([0.01365203, 0.01084071, 0.00848383]),
+            'sMTsum': np.array([-0.04670521, -0.0419575 , -0.03721514]),
+            'sMTint': np.array([0.41869621, 0.38011205, 0.34718162]),
+            'sDOS': np.array([-0.01573298, -0.01378098, -0.01198939]),
+            'sDCR': np.array([0.00306054, 0.00257866, 0.00210655]),
+            'sigma': np.array([0.3729706 , 0.33779293, 0.30856747])
+        }
+        for key in expected:
+            np.testing.assert_array_almost_equal(result[key], expected[key], decimal=6)
+
+    def test_fscope_parallel_bad_input(self):
+        params = {
+            'ctype': 100,
+            'tmin': [2,2.1,2.2],
+            'dt': 0,
+            'Nt': 1,
+            'hmin': [0.01, 0.02],
+            'dh': 0,
+            'Nh': 1,
+            'Tc0tau': 1e-2,
+            'delta': 1e-3
+        }
+        with self.assertRaises(ValueError):
+            fscope_parallel(params)
 
 class TestFscopeDeltaWrapped(unittest.TestCase):
     def test_fscope_delta_wrapped_basic(self):
