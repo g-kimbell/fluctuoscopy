@@ -62,8 +62,8 @@ def get_fscope_executable() -> str:
     base_dir = os.path.dirname(os.path.abspath(__file__))
     if system == 'Linux':
         return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_linux')
-    # if system == 'Darwin':
-    #     return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_mac')
+    if system == 'Darwin':
+        return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_mac')
     if system == 'Windows':
         return os.path.join(base_dir, 'bin', 'FSCOPE_windows.exe')
     raise RuntimeError(f"Unsupported operating system: {system}")
