@@ -14,7 +14,7 @@ import os
 import platform
 from typing import Tuple
 import numpy as np
-from multiprocess import Pool
+from multiprocess import Pool, cpu_count
 
 pi = np.pi
 hbar=1.0545718176461565e-34
@@ -168,7 +168,7 @@ def fscope_parallel(params: dict) -> dict:
         if len(params[key]) == 1:
             params[key] = params[key]*n
     # Run the parallel calculation
-    with Pool() as pool:
+    with Pool(max(1,cpu_count-1)) as pool:
         arg_list = [{key: params[key][i] for key in params} for i in range(n)]
         results = pool.map(fscope, arg_list)
     # Combine the results
@@ -250,7 +250,7 @@ def fscope_delta_wrapped(
     def fscope_delta_wrapper(args):
         x, Tc, tau, delta = args
         return fscope_delta(x, Tc, tau, delta)
-    with Pool() as pool:
+    with Pool(max(1,cpu_count-1)) as pool:
         args_list = [(Ts[i], Tc, tau, deltas[i]) for i in range(n)]
         results_list = pool.map(fscope_delta_wrapper, args_list)
     results[0:7, :] = np.array(results_list).T
