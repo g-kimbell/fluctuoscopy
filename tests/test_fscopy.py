@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 from fluctuoscopy.fluctuosco import (
+    fscope_R,
     fscope_full_func,
     fscope,
     fscope_parallel,
@@ -14,6 +15,7 @@ from fluctuoscopy.fluctuosco import (
 e = 1.60217662e-19
 m_e = 9.10938356e-31
 hbar = 1.0545718e-34
+k_B = 1.38064852e-23
 pi = np.pi
 
 class TestFscopeFullFunc(unittest.TestCase):
@@ -158,7 +160,8 @@ class TestFscopeDeltaWrapped(unittest.TestCase):
             'DCR': np.array([5.54148708e-08, 1.42590054e-08, 4.65064346e-09]),
             'Fluctuation_tot': np.array([1.50363672e-04, 6.73733038e-05, 4.06415750e-05]),
             'WL': np.array([-9.37283634e-05, -9.01808203e-05, -8.74291320e-05]),
-            'WAL': np.array([0., 0., 0.]), 'MT': np.array([1.51202612e-04, 6.79063452e-05, 4.09035928e-05]),
+            'WAL': np.array([0., 0., 0.]),
+            'MT': np.array([1.51202612e-04, 6.79063452e-05, 4.09035928e-05]),
             'Total': np.array([5.66353091e-05, -2.28075165e-05, -4.67875570e-05])
         }
 
@@ -188,7 +191,7 @@ class TestFscopeDeltaWrapped(unittest.TestCase):
             'WL': np.array([-9.37283634e-05, -9.01808203e-05, -8.74291320e-05]),
             'WAL': np.array([0.00027264, 0.00026732, 0.00026319]),
             'MT': np.array([1.51202612e-04, 6.79063452e-05, 4.09035928e-05]),
-            'Total': np.array([5.66353091e-05, -2.28075165e-05, -4.67875570e-05])
+            'Total': np.array([0.0003292758061, 0.0002445116666, 0.00021640409570]),
         }
 
         result_R, result_results = fscope_delta_wrapped(Ts, Tc, tau, delta0, R0, alpha, tau_SO)
@@ -251,6 +254,66 @@ class TestAL2D(unittest.TestCase):
         expected = np.zeros_like(Ts)
         result = AL2D(Ts, Tc, R0)
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
+
+class TestFscopeR(unittest.TestCase):
+    def test_fscope_R(self):
+        Ts = np.array([1.5, 2.0, 2.5])
+        Tc = 1.0
+        tau = 1e-12
+        delta0 = 1e-3
+        tauphi0 = pi*hbar/(8*k_B*delta0)
+        R0 = 1000.0
+        alpha = -1
+        tau_SO = None
+
+        expected_R = [946.40032506, 1023.33984024, 1049.08408124]
+        expected_results = {
+            'AL': np.array([1.31040170e-06, 1.43936402e-07, 2.99469748e-08]),
+            'MTsum': np.array([-4.04100310e-06, -1.65381459e-06, -8.44054498e-07]),
+            'MTint': np.array([1.55243615e-04, 6.95601598e-05, 4.17476473e-05]),
+            'DOS': np.array([-2.20475627e-06, -6.91236851e-07, -2.96615333e-07]),
+            'DCR': np.array([5.54148708e-08, 1.42590054e-08, 4.65064346e-09]),
+            'Fluctuation_tot': np.array([1.50363672e-04, 6.73733038e-05, 4.06415750e-05]),
+            'WL': np.array([-9.37283634e-05, -9.01808203e-05, -8.74291320e-05]),
+            'WAL': np.array([0., 0., 0.]),
+            'MT': np.array([1.51202612e-04, 6.79063452e-05, 4.09035928e-05]),
+            'Total': np.array([5.66353091e-05, -2.28075165e-05, -4.67875570e-05])
+        }
+
+        result_R, result_results = fscope_R(Ts, Tc, tau, tauphi0, R0, alpha, tau_SO)
+
+        np.testing.assert_array_almost_equal(result_R, expected_R, decimal=5)
+        for key in expected_results:
+            np.testing.assert_array_almost_equal(result_results[key], expected_results[key], decimal=5)
+
+    def test_fscope_R_with_tau_SO(self):
+        Ts = np.array([1.5, 2.0, 2.5])
+        Tc = 1.0
+        tau = 1e-12
+        delta0 = 1e-3
+        tauphi0 = pi*hbar/(8*k_B*delta0)
+        R0 = 1000.0
+        alpha = -1
+        tau_SO = 1e-15
+        expected_R = np.array([752.28932942, 803.52802669, 822.0952287])
+        expected_results = {
+            'AL': np.array([1.31040170e-06, 1.43936402e-07, 2.99469748e-08]),
+            'MTsum': np.array([-4.04100310e-06, -1.65381459e-06, -8.44054498e-07]),
+            'MTint': np.array([1.55243615e-04, 6.95601598e-05, 4.17476473e-05]),
+            'DOS': np.array([-2.20475627e-06, -6.91236851e-07, -2.96615333e-07]),
+            'DCR': np.array([5.54148708e-08, 1.42590054e-08, 4.65064346e-09]),
+            'Fluctuation_tot': np.array([1.50363672e-04, 6.73733038e-05, 4.06415750e-05]),
+            'WL': np.array([-9.37283634e-05, -9.01808203e-05, -8.74291320e-05]),
+            'WAL': np.array([0.00027264, 0.00026732, 0.00026319]),
+            'MT': np.array([1.51202612e-04, 6.79063452e-05, 4.09035928e-05]),
+            'Total': np.array([0.0003292758061, 0.0002445116666, 0.00021640409570]),
+        }
+
+        result_R, result_results = fscope_R(Ts, Tc, tau, tauphi0, R0, alpha, tau_SO)
+
+        np.testing.assert_array_almost_equal(result_R, expected_R, decimal=5)
+        for key in expected_results:
+            np.testing.assert_array_almost_equal(result_results[key], expected_results[key], decimal=5)
 
 if __name__ == '__main__':
     unittest.main()
