@@ -1,6 +1,9 @@
 from .fluctuosco import *
 
 __all__ = [
+    'mc_sigma',
+    'hc2',
+    'fscope_R',
     'fscope_full_func',
     'fscope',
     'fscope_parallel',
