@@ -74,9 +74,7 @@ def get_fscope_lib() -> ctypes.CDLL:
     system = platform.system()
     base_dir = os.path.dirname(os.path.abspath(__file__))
     if system == 'Linux':
-        # return os.path.join(os.path.dirname(__file__), 'bin', 'libFSCOPE.so')
-        warnings.warn("FSCOPE C library not available on Linux, mc_sigma, hc2 and fscope_R functions will not work")
-        return None
+        return os.path.join(os.path.dirname(__file__), 'bin', 'fluctuoscope_extC.so')
     elif system == 'Darwin':
         # return os.path.join(os.path.dirname(__file__), 'bin', 'libFSCOPE.dylib')
         warnings.warn("FSCOPE C library not available on MacOS, mc_sigma, hc2 and fscope_R functions will not work")
