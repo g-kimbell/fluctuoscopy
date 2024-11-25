@@ -372,5 +372,4 @@ if __name__ == "__main__":
     ]
     for i, res in enumerate(results):
         success = abs(res - fscope_truth[i]) < 1e-6
-        print(f"Result {i} {"PASS" if success else "FAIL"}: {res} Ground truth: {fscope_truth[i]}")
-
+        print(f"{success} Result {i}: {res} Ground truth: {fscope_truth[i]}")
