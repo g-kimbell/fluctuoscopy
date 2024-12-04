@@ -14,13 +14,16 @@ inputs and outputs are passed as a Python dictionary.
 (c) 2024 Graham Kimbell, Ulderico Filipozzi, Andreas Glatz.
 """
 
-import subprocess
-import os
-import platform
-from typing import Tuple
-import numpy as np
+from __future__ import annotations
+
 import ctypes
+import platform
+import shlex
+import subprocess
 import warnings
+from pathlib import Path
+
+import numpy as np
 
 pi = np.pi
 hbar=1.0545718176461565e-34
@@ -45,48 +48,58 @@ KNOWN_CTYPES = {
     500: "susceptibility t,h",
 }
 KNOWN_PARAMS = {
-    'ctype': "[integer] computation type",
-    'tmin': "[float] : minimal temperature value in units of Tc0",
-    'dt': "[float] : temperature interval in units of Tc",
-    'Nt': "[integer] : number temperature value steps, i.e., t=tmin,tmin+dt,...,tmin+(Nt-1)*dt",
-    'St': "[integer] : temperature scale: 0 - linear [default], 1 - log10, 2 - ln",
-    'hmin': "[float] minimal dimensionless magnetic field h",
-    'dh': "[float] magnetic field interval",
-    'Nh': "[integer] number of magnetic field steps",
-    'Sh': "[integer] magnetic field scale: 0 - linear [default], 1 - log10, 2 - ln",
-    'vmin': "[float] minimal dimensionless voltage v",
-    'dv': "[float] voltage interval",
-    'Nv': "[integer] number of voltage steps",
-    'Sv': "[integer] voltage scale: 0 - linear [default], 1 - log10, 2 - ln",
-    'Tc0tau': "[float] value of Tc0*tau",
-    'Tc0tauphi': "[float]  value of Tc0*tau_phi",
-    'delta': "[float] value of delta=pi/(8*t*Tc0tauphi), if set overrides Tc0tauphi",
+    "ctype": "[integer] computation type",
+    "tmin": "[float] : minimal temperature value in units of Tc0",
+    "dt": "[float] : temperature interval in units of Tc",
+    "Nt": "[integer] : number temperature value steps, i.e., t=tmin,tmin+dt,...,tmin+(Nt-1)*dt",
+    "St": "[integer] : temperature scale: 0 - linear [default], 1 - log10, 2 - ln",
+    "hmin": "[float] minimal dimensionless magnetic field h",
+    "dh": "[float] magnetic field interval",
+    "Nh": "[integer] number of magnetic field steps",
+    "Sh": "[integer] magnetic field scale: 0 - linear [default], 1 - log10, 2 - ln",
+    "vmin": "[float] minimal dimensionless voltage v",
+    "dv": "[float] voltage interval",
+    "Nv": "[integer] number of voltage steps",
+    "Sv": "[integer] voltage scale: 0 - linear [default], 1 - log10, 2 - ln",
+    "Tc0tau": "[float] value of Tc0*tau",
+    "Tc0tauphi": "[float]  value of Tc0*tau_phi",
+    "delta": "[float] value of delta=pi/(8*t*Tc0tauphi), if set overrides Tc0tauphi",
 }
 
 def get_fscope_executable() -> str:
+    """Get the path to the FSCOPE executable based on the operating system."""
     system = platform.system()
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    if system == 'Linux':
-        return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_linux')
-    if system == 'Darwin':
-        return os.path.join(os.path.dirname(__file__), 'bin', 'FSCOPE_mac')
-    if system == 'Windows':
-        return os.path.join(base_dir, 'bin', 'FSCOPE_windows.exe')
-    raise RuntimeError(f"Unsupported operating system: {system}")
+    base_dir = Path(__file__).resolve().parent
+    if system == "Linux":
+        return Path(__file__).resolve().parent / "bin" / "FSCOPE_linux"
+    if system == "Darwin":
+        return Path(__file__).resolve().parent / "bin" / "FSCOPE_mac"
+    if system == "Windows":
+        return base_dir / "bin" / "FSCOPE_windows.exe"
+    msg = f"Unsupported operating system: {system}"
+    raise RuntimeError(msg)
 
 def get_fscope_lib() -> ctypes.CDLL:
+    """Get the FSCOPE C library based on the operating system."""
     system = platform.system()
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    if system == 'Linux':
-        shared_library_path = os.path.join(os.path.dirname(__file__), 'bin', 'fluctuoscope_extC.so')
-    elif system == 'Darwin':
-        # return os.path.join(os.path.dirname(__file__), 'bin', 'libFSCOPE.dylib') # TODO compile for MacOS
-        warnings.warn("FSCOPE C library not available on MacOS, mc_sigma, hc2 and fscope_R functions will not work")
+    base_dir = Path(__file__).resolve().parent
+    if system == "Linux":
+        shared_library_path = Path(__file__).resolve().parent / "bin" / "fluctuoscope_extC.so"
+    elif system == "Darwin":
+        # TODO: compile for MacOS
+        # shared_library_path = Path(__file__).resolve().parent / "bin" / "fluctuoscope_extC.dylib')
+        warnings.warn(
+            "FSCOPE C library not available on MacOS, mc_sigma, hc2 and fscope_R functions will not work",
+            stacklevel=2,
+        )
         return None
-    elif system == 'Windows':
-        shared_library_path = os.path.join(base_dir, 'bin', 'fluctuoscope_extC.dll')
+    elif system == "Windows":
+        shared_library_path = base_dir / "bin" / "fluctuoscope_extC.dll"
     else:
-        warnings.warn(f"Unsupported operating system: {system}, mc_sigma, hc2 and fscope_R functions will not work")
+        warnings.warn(
+            f"Unsupported operating system: {system}, mc_sigma, hc2 and fscope_R functions will not work",
+            stacklevel=2,
+        )
         return None
 
     fscope_lib = ctypes.CDLL(shared_library_path)
@@ -108,8 +121,8 @@ def mc_sigma(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.nda
     Args:
         t (np.ndarray): Reduced temperature T/Tc
         h (np.ndarray): Reduced magnetic field H/Hc2 TODO is this actually correct
-        Tc_tau (np.ndarray): Tc*tau*k/hbar (dimensionless)
-        Tc_tauphi (np.ndarray): Tc*tau_phi*k/hbar (dimensionless)
+        Tc_tau (np.ndarray): Tc tau k_B / hbar (dimensionless)
+        Tc_tauphi (np.ndarray): Tc tau_phi k_B / hbar (dimensionless)
 
     Returns:
         np.ndarray: sAL, sMTsum, sMTint, sDOS, sCC
@@ -132,6 +145,7 @@ def mc_sigma(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.nda
     return results.reshape((len(t),5)).T
 
 def hc2(t: np.ndarray) -> np.ndarray:
+    """Calculate the upper critical field using the FSCOPE C library."""
     if not isinstance(t, np.ndarray):
         t = np.array(t)
     results = np.zeros(len(t), dtype=np.float64)
@@ -143,17 +157,18 @@ def hc2(t: np.ndarray) -> np.ndarray:
     return results
 
 def fscope_full_func(params: dict) -> list:
-    """ Calculates the paraconductivity using the FSCOPE program
+    """Calculate the paraconductivity using the FSCOPE program.
 
     Args:
         params (dict or list):
             Parameters to be passed to the FSCOPE program
             See the FSCOPE documentation for a list of possible parameters
-    
+
     Returns:
         list: lines of output from the FSCOPE program
+
     """
-    if 'ctype' not in params.keys():
+    if "ctype" not in params:
         message = [
             "No computation type specified",
             "Include 'ctype' in the params dictionary with one of the following values:",
@@ -163,18 +178,16 @@ def fscope_full_func(params: dict) -> list:
     # if ctype not known
     unknown_params = [k for k in params if k not in KNOWN_PARAMS]
     if unknown_params:
-        message = [
-            "Unknown parameters:",
-            "Please use the following keys for the params dictionary:",
-        ] + unknown_params
+        message = ["Unknown parameters:", "Please use the following keys for the params dictionary:", *unknown_params]
         message = "\n".join(message)
         raise ValueError(message)
-    output = subprocess.check_output([FSCOPE_EXECUTABLE]+[f'{k}={v}' for k,v in params.items()])
-    output_decoded = output.decode().splitlines()
-    return output_decoded
+    # Sanitize and prepare the command arguments
+    command = [FSCOPE_EXECUTABLE] + [f"{k}={shlex.quote(str(v))}" for k, v in params.items()]
+    output = subprocess.check_output(command)
+    return output.decode().splitlines()
 
-def fscope(params: dict = None) -> dict:
-    """ Calculates the paraconductivity using the FSCOPE program
+def fscope(params: dict | None = None) -> dict:
+    """Calculate paraconductivity using the FSCOPE program.
 
     Args:
         params (dict or list):
@@ -185,11 +198,10 @@ def fscope(params: dict = None) -> dict:
     Returns:
         dict: Dictionary of the output from the FSCOPE program, with header
             and separate data columns
+
     """
-    if params is None:
-        params = {}
     output = fscope_full_func(params)
-    if 'FLUCTUOSCOPE' in output[0]:
+    if "FLUCTUOSCOPE" in output[0]:
         message = [
             "Usage of fluctuoscopy, using FLUCTUOSCOPE version 2.1:",
             "Add params to the function as a dictionary using the following keys:",
@@ -201,15 +213,14 @@ def fscope(params: dict = None) -> dict:
     header = []
     data = []
     for line in output:
-        if line.startswith('#'):
-            header += [line.strip('#')]
+        if line.startswith("#"):
+            header += [line.strip("#")]
         else:
-            data += [[float(n) for n in line.split('\t')]]
-    col_names = header[-1].split('\t')
+            data += [[float(n) for n in line.split("\t")]]
+    col_names = header[-1].split("\t")
     data = np.array(data).T
-    result['header'] = header[:-1]
-    for col_name, col_data in zip(col_names, data):
-        result[col_name] = col_data
+    result["header"] = header[:-1]
+    result.update(dict(zip(col_names, data)))
     return result
 
 def fscope_fluc(
@@ -219,13 +230,28 @@ def fscope_fluc(
     tau_phi0: float,
     R0: float,
     alpha: float = -1,
-    tau_SO: float = None,
-) -> Tuple[np.ndarray, dict]:
+    tau_SO: float | None = None,
+) -> tuple[np.ndarray, dict]:
     """Get resistance, fluctuation and localization contributions from T.
 
     Units are SI (Ohm, seconds). Uses the parallelized C library for faster computation.
+
+    Args:
+        Ts (np.ndarray): Temperatures in Kelvin
+        Tc (float): Critical temperature in Kelvin
+        tau (float): Elastic scattering time in seconds
+        tau_phi0 (float): Phase breaking time in seconds
+        R0 (float): Normal state resistance in Ohms
+        alpha (float): Exponent for phase breaking time temperature dependence
+        tau_SO (float, optional): Spin-orbit scattering time in seconds
+
+    Returns:
+        tuple[np.ndarray, dict]: Resistance in Ohms and dictionary of contributions
+
     """
-    assert all(Ts > Tc), "All temperatures must be above the critical temperature"
+    if not all(Ts > Tc):
+        msg = "All temperatures must be above the critical temperature"
+        raise ValueError(msg)
     results = np.zeros((9,len(Ts)))
     t = np.array(Ts)/Tc
     h = np.zeros(len(Ts))+0.01
@@ -240,55 +266,52 @@ def fscope_fluc(
     sigma0=1/R0
     R = 1/(sigma0 + fluc_total*conversion + WL + WAL)
     results_dict = {
-        'AL': results[0]*conversion,
-        'MTsum': results[1]*conversion,
-        'MTint': results[2]*conversion,
-        'DOS': results[3]*conversion,
-        'DCR': results[4]*conversion,
-        'Fluctuation_tot': fluc_total*conversion,
-        'WL': WL,
-        'WAL': WAL,
-        'MT': (results[1] + results[2])*conversion,
-        'Total': fluc_total*conversion + WL + WAL,
+        "AL": results[0]*conversion,
+        "MTsum": results[1]*conversion,
+        "MTint": results[2]*conversion,
+        "DOS": results[3]*conversion,
+        "DCR": results[4]*conversion,
+        "Fluctuation_tot": fluc_total*conversion,
+        "WL": WL,
+        "WAL": WAL,
+        "MT": (results[1] + results[2])*conversion,
+        "Total": fluc_total*conversion + WL + WAL,
     }
     return R, results_dict
 
 def weak_localization(tau: float, tau_phi: np.ndarray) -> np.ndarray:
-    """ Calculates the weak localization correction to the conductance
+    """Calculate the weak localization correction to the conductance.
 
     Args:
         tau (float): Elastic scattering time in seconds
         tau_phi (array): Phase breaking time in seconds
-    
+
     Returns:
         array: The correction to conductance in Siemens (Ohms^-1)
+
     """
-    dG = -e**2/(2*pi**2*hbar)*np.log(tau_phi/tau)
-    return dG
+    return -e**2/(2*pi**2*hbar)*np.log(tau_phi/tau)
 
 def weak_antilocalization(tau_SO: float, tau_phi: np.ndarray) -> np.ndarray:
-    """ Calculates the weak antilocalization correction to the conductance
+    """Calculate the weak antilocalization correction to the conductance.
 
     Args:
         tau_SO (float): Spin-orbit scattering time in seconds
         tau_phi (array): Phase breaking time in seconds
-    
+
     Returns:
         array: The correction to conductance in Siemens (Ohms^-1)
+
     """
-    dG = e**2/(2*pi**2*hbar)*np.log(
-        (1+tau_phi/tau_SO) *
-        (1+2*tau_phi/tau_SO)**0.5
-    )
-    return dG
+    return e**2 / (2*pi**2*hbar) * np.log((1+tau_phi/tau_SO) * (1+2*tau_phi/tau_SO)**0.5)
 
 def AL2D(
     Ts: np.ndarray,
     Tc: float,
     R0: float,
-    C: float = e**2/(16*hbar)
+    C: float = e**2/(16*hbar),
 ) -> np.ndarray:
-    """ Aslamasov-Larkin fluctuation conductance contribution
+    """Aslamasov-Larkin fluctuation conductance contribution.
 
     Args:
         Ts (array): Temperatures in Kelvin
@@ -297,6 +320,7 @@ def AL2D(
         C (float): Physical constant of e^2/16hbar, this is sometimes varied in literature
 
     Returns:
-        array: Sheet conductance in Siemens (Ohms^-1).
+        array: Sheet conductance in Siemens (Ohms^-1)
+
     """
     return 1/(1/R0 + C/np.log(Ts/Tc)) * np.heaviside(Ts-Tc,0)
