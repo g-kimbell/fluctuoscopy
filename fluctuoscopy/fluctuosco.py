@@ -74,24 +74,25 @@ def get_fscope_lib() -> ctypes.CDLL:
     system = platform.system()
     base_dir = os.path.dirname(os.path.abspath(__file__))
     if system == 'Linux':
-        return os.path.join(os.path.dirname(__file__), 'bin', 'fluctuoscope_extC.so')
+        shared_library_path = os.path.join(os.path.dirname(__file__), 'bin', 'fluctuoscope_extC.so')
     elif system == 'Darwin':
-        # return os.path.join(os.path.dirname(__file__), 'bin', 'libFSCOPE.dylib')
+        # return os.path.join(os.path.dirname(__file__), 'bin', 'libFSCOPE.dylib') # TODO compile for MacOS
         warnings.warn("FSCOPE C library not available on MacOS, mc_sigma, hc2 and fscope_R functions will not work")
         return None
     elif system == 'Windows':
-        dll_path = os.path.join(base_dir, 'bin', 'fluctuoscope_extC.dll')
-        fscope_lib = ctypes.CDLL(dll_path)
-        fscope_lib.MC_sigma_array.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),
-                                            ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),
-                                            ctypes.POINTER(ctypes.c_double), ctypes.c_int]
-        fscope_lib.MC_sigma_array.restype = None
-        fscope_lib.hc2_array.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double), ctypes.c_int]
-        fscope_lib.hc2_array.restype = None
-        return fscope_lib
+        shared_library_path = os.path.join(base_dir, 'bin', 'fluctuoscope_extC.dll')
     else:
         warnings.warn(f"Unsupported operating system: {system}, mc_sigma, hc2 and fscope_R functions will not work")
         return None
+
+    fscope_lib = ctypes.CDLL(shared_library_path)
+    fscope_lib.MC_sigma_array.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),
+                                        ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),
+                                        ctypes.POINTER(ctypes.c_double), ctypes.c_int]
+    fscope_lib.MC_sigma_array.restype = None
+    fscope_lib.hc2_array.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double), ctypes.c_int]
+    fscope_lib.hc2_array.restype = None
+    return fscope_lib
 
 # Get the path to the FSCOPE executable once at import time
 FSCOPE_EXECUTABLE = get_fscope_executable()
