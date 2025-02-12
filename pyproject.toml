@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fluctuoscopy"
+description = "A Python wrapper with extras for the FSCOPE program, written by Andreas Glatz"
+license = {text = "MIT AND BSD-2-CLAUSE"}
+readme = "README.md"
+requires-python = ">=3.7"
+version = "0.1.0"
+dependencies = [
+    "numpy",
+]
+authors = [
+    {name = "Graham Kimbell"},
+    {name = "Ulderico Filippozzi"},
+    {name = "Andreas Glatz"},
+]
+
+[tool.setuptools.package-data]
+"fluctuoscopy" = ["bin/*"]
+
+[tool.ruff]
+line-length = 120
+lint.select = ["ALL"]
+lint.ignore = [
+    "N806",
+    "T201",
+    "FA102",
+    "PD901",
+    "FBT001",
+    "FBT002",
+    "PLR2004",
+    "TD002",
+    "TD003",
+    "D203",
+    "D213",
+    "COM812",
+]
+fix = true
+
+[tool.mypy]
+disable_error_code = ["import-untyped"]
