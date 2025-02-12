@@ -66,7 +66,7 @@ KNOWN_PARAMS = {
     "delta": "[float] value of delta=pi/(8*t*Tc0tauphi), if set overrides Tc0tauphi",
 }
 
-def get_fscope_executable() -> str:
+def get_fscope_executable() -> Path:
     """Get the path to the FSCOPE executable based on the operating system."""
     system = platform.system()
     base_dir = Path(__file__).resolve().parent
@@ -79,7 +79,7 @@ def get_fscope_executable() -> str:
     msg = f"Unsupported operating system: {system}"
     raise RuntimeError(msg)
 
-def get_fscope_lib() -> ctypes.CDLL:
+def get_fscope_lib() -> ctypes.CDLL | None:
     """Get the FSCOPE C library based on the operating system."""
     system = platform.system()
     base_dir = Path(__file__).resolve().parent
@@ -89,7 +89,7 @@ def get_fscope_lib() -> ctypes.CDLL:
         # TODO: compile for MacOS
         # shared_library_path = Path(__file__).resolve().parent / "bin" / "fluctuoscope_extC.dylib')
         warnings.warn(
-            "FSCOPE C library not available on MacOS, mc_sigma, hc2 and fscope_R functions will not work",
+            "FSCOPE C library not available on MacOS, mc_sigma, hc2 and fscope_fluc functions will not work",
             stacklevel=2,
         )
         return None
@@ -97,12 +97,12 @@ def get_fscope_lib() -> ctypes.CDLL:
         shared_library_path = base_dir / "bin" / "fluctuoscope_extC.dll"
     else:
         warnings.warn(
-            f"Unsupported operating system: {system}, mc_sigma, hc2 and fscope_R functions will not work",
+            f"Unsupported operating system: {system}, mc_sigma, hc2 and fscope_fluc functions will not work",
             stacklevel=2,
         )
         return None
 
-    fscope_lib = ctypes.CDLL(shared_library_path)
+    fscope_lib = ctypes.CDLL(str(shared_library_path))
     fscope_lib.MC_sigma_array.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),
                                         ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),
                                         ctypes.POINTER(ctypes.c_double), ctypes.c_int]
@@ -134,6 +134,9 @@ def mc_sigma(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.nda
 
     """
     results = np.zeros(5 * len(t), dtype=np.float64)
+    if not FSCOPE_LIB:
+        msg = "FSCOPE C library not available on this operating system"
+        raise NotImplementedError(msg)
     FSCOPE_LIB.MC_sigma_array(
         t.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         h.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
@@ -149,6 +152,9 @@ def hc2(t: np.ndarray) -> np.ndarray:
     if not isinstance(t, np.ndarray):
         t = np.array(t)
     results = np.zeros(len(t), dtype=np.float64)
+    if not FSCOPE_LIB:
+        msg = "FSCOPE C library not available on this operating system"
+        raise NotImplementedError(msg)
     FSCOPE_LIB.hc2_array(
         t.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         results.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
@@ -169,17 +175,19 @@ def fscope_full_func(params: dict) -> list:
 
     """
     if "ctype" not in params:
-        message = [
-            "No computation type specified",
-            "Include 'ctype' in the params dictionary with one of the following values:",
-        ] + [f"{key}: {value}" for key, value in KNOWN_CTYPES.items()]
-        message = "\n".join(message)
+        message = "\n".join(
+            [
+                "No computation type specified",
+                "Include 'ctype' in the params dictionary with one of the following values:",
+            ] + [f"{key}: {value}" for key, value in KNOWN_CTYPES.items()],
+        )
         raise ValueError(message)
     # if ctype not known
     unknown_params = [k for k in params if k not in KNOWN_PARAMS]
     if unknown_params:
-        message = ["Unknown parameters:", "Please use the following keys for the params dictionary:", *unknown_params]
-        message = "\n".join(message)
+        message = "\n".join([
+            "Unknown parameters:", "Please use the following keys for the params dictionary:", *unknown_params,
+        ])
         raise ValueError(message)
     # Sanitize and prepare the command arguments
     command = [FSCOPE_EXECUTABLE] + [f"{k}={shlex.quote(str(v))}" for k, v in params.items()]
@@ -200,18 +208,21 @@ def fscope(params: dict | None = None) -> dict:
             and separate data columns
 
     """
+    if params is None:
+        params = {}
     output = fscope_full_func(params)
     if "FLUCTUOSCOPE" in output[0]:
-        message = [
-            "Usage of fluctuoscopy, using FLUCTUOSCOPE version 2.1:",
-            "Add params to the function as a dictionary using the following keys:",
-        ] + output[5:]
-        message = "\n".join(message)
+        message = "\n".join(
+            [
+                "Usage of fluctuoscopy, using FLUCTUOSCOPE version 2.1:",
+                "Add params to the function as a dictionary using the following keys:",
+            ] + output[5:],
+        )
         raise ValueError(message)
 
     result = {}
     header = []
-    data = []
+    data: list | np.ndarray = []
     for line in output:
         if line.startswith("#"):
             header += [line.strip("#")]
