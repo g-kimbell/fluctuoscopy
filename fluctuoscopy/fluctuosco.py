@@ -86,13 +86,7 @@ def get_fscope_lib() -> ctypes.CDLL | None:
     if system == "Linux":
         shared_library_path = Path(__file__).resolve().parent / "bin" / "fluctuoscope_extC.so"
     elif system == "Darwin":
-        # TODO: compile for MacOS
-        # shared_library_path = Path(__file__).resolve().parent / "bin" / "fluctuoscope_extC.dylib')
-        warnings.warn(
-            "FSCOPE C library not available on MacOS, mc_sigma, hc2 and fscope_fluc functions will not work",
-            stacklevel=2,
-        )
-        return None
+        shared_library_path = Path(__file__).resolve().parent / "bin" / "fluctuoscope_extC.dylib"
     elif system == "Windows":
         shared_library_path = base_dir / "bin" / "fluctuoscope_extC.dll"
     else:
