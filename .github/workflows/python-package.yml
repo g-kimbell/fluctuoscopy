@@ -5,23 +5,27 @@ name: Python package
 
 on:
   push:
-    branches: [ "main", "experimental" ]
+    branches: [ "main", "macdylib" ]
   pull_request:
     branches: [ "main" ]
 
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.8","3.9","3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set execute permissions for FSCOPE_linux
-      run: chmod +x ./fluctuoscopy/bin/FSCOPE_linux
+    - name: Set execute permissions for FSCOPE (Linux and macOS)
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+      run: |
+        chmod +x ./fluctuoscopy/bin/FSCOPE_linux
+        chmod +x ./fluctuoscopy/bin/FSCOPE_mac
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
       with:
