@@ -84,9 +84,9 @@ def get_fscope_lib() -> ctypes.CDLL | None:
     system = platform.system()
     base_dir = Path(__file__).resolve().parent
     if system == "Linux":
-        shared_library_path = Path(__file__).resolve().parent / "bin" / "fluctuoscope_extC.so"
+        shared_library_path = base_dir / "bin" / "fluctuoscope_extC.so"
     elif system == "Darwin":
-        shared_library_path = Path(__file__).resolve().parent / "bin" / "fluctuoscope_extC.dylib"
+        shared_library_path = base_dir / "bin" / "fluctuoscope_extC.dylib"
     elif system == "Windows":
         shared_library_path = base_dir / "bin" / "fluctuoscope_extC.dll"
     else:
