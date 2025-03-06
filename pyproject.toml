@@ -23,6 +23,12 @@ authors = [
     {name = "Andreas Glatz"},
 ]
 
+[project.optional-dependencies]
+dev = [
+    "maturin",
+    "pytest",
+]
+
 [tool.maturin]
 features = ["pyo3/extension-module"]
 module-name = "fluctuoscopy._fluctuoscopy"
