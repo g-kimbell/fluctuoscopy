@@ -1,58 +1,37 @@
 use num_complex::*;
 use polygamma::polygamma;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use pyo3::PyObject;
+use pyo3::PyResult;
 use rayon::prelude::*;
 use spfunc::gamma::digamma as complex_digamma;
 use statrs::function::gamma::digamma;
 use std::vec::Vec;
 
-#[pyclass]
-pub struct SigmaResult {
-    #[pyo3(get)]
-    pub al: f64,
-    #[pyo3(get)]
-    pub mtsum: f64,
-    #[pyo3(get)]
-    pub mtint: f64,
-    #[pyo3(get)]
-    pub dos: f64,
-    #[pyo3(get)]
-    pub dcr: f64,
-}
 
 #[pyfunction]
-pub fn mc_sigma(t: f64, h: f64, tctau: f64, tctauphi: f64) -> SigmaResult {
+pub fn mc_sigma(py: Python, t: f64, h: f64, tctau: f64, tctauphi: f64) -> PyResult<PyObject> {
     let (al, mtsum, mtint, dos, dcr) = calculate_mc_sigma(t, h, tctau, tctauphi);
-    SigmaResult {
-        al,
-        mtsum,
-        mtint,
-        dos,
-        dcr,
-    }
-}
-
-#[pyclass]
-pub struct BatchSigmaResult {
-    #[pyo3(get)]
-    pub al: Vec<f64>,
-    #[pyo3(get)]
-    pub mtsum: Vec<f64>,
-    #[pyo3(get)]
-    pub mtint: Vec<f64>,
-    #[pyo3(get)]
-    pub dos: Vec<f64>,
-    #[pyo3(get)]
-    pub dcr: Vec<f64>,
+    
+    let dict = PyDict::new(py);
+    dict.set_item("al", al)?;
+    dict.set_item("mtsum", mtsum)?;
+    dict.set_item("mtint", mtint)?;
+    dict.set_item("dos", dos)?;
+    dict.set_item("dcr", dcr)?;
+    
+    Ok(dict.into())
 }
 
 #[pyfunction]
 pub fn mc_sigma_parallel(
+    py: Python,
     t_values: Vec<f64>,
     h_values: Vec<f64>,
     tctau_values: Vec<f64>,
     tctauphi_values: Vec<f64>,
-) -> BatchSigmaResult {
+) -> PyResult<PyObject> {
     // Check that all input arrays have the same length
     let n = t_values.len();
     assert_eq!(
@@ -102,13 +81,14 @@ pub fn mc_sigma_parallel(
         dcr.push(s_dcr);
     }
 
-    BatchSigmaResult {
-        al,
-        mtsum,
-        mtint,
-        dos,
-        dcr,
-    }
+    let dict = PyDict::new(py);
+    dict.set_item("al", al)?;
+    dict.set_item("mtsum", mtsum)?;
+    dict.set_item("mtint", mtint)?;
+    dict.set_item("dos", dos)?;
+    dict.set_item("dcr", dcr)?;
+    
+    Ok(dict.into())
 }
 
 fn calculate_mc_sigma(t: f64, h: f64, tctau: f64, tctauphi: f64) -> (f64, f64, f64, f64, f64) {
