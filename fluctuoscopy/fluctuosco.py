@@ -71,9 +71,9 @@ def get_fscope_executable() -> Path:
     system = platform.system()
     base_dir = Path(__file__).resolve().parent
     if system == "Linux":
-        return Path(__file__).resolve().parent / "bin" / "FSCOPE_linux"
+        return base_dir / "bin" / "FSCOPE_linux"
     if system == "Darwin":
-        return Path(__file__).resolve().parent / "bin" / "FSCOPE_mac"
+        return base_dir / "bin" / "FSCOPE_mac"
     if system == "Windows":
         return base_dir / "bin" / "FSCOPE_windows.exe"
     msg = f"Unsupported operating system: {system}"
@@ -192,7 +192,7 @@ def fscope(params: dict | None = None) -> dict:
     """Calculate paraconductivity using the FSCOPE program.
 
     Args:
-        params (dict or list):
+        params (dict):
             Parameters to be passed to the FSCOPE program
             See the FSCOPE documentation for a list of possible parameters
             Or run without parameters to see the usage message
@@ -234,8 +234,8 @@ def fscope_fluc(
     tau: float,
     tau_phi0: float,
     R0: float,
-    alpha: float = -1,
-    tau_SO: float | None = None,
+    alpha: float = -1.0,
+    tau_SO: float | np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Get resistance, fluctuation and localization contributions from T.
 
@@ -248,7 +248,7 @@ def fscope_fluc(
         tau_phi0 (float): Phase breaking time in seconds
         R0 (float): Normal state resistance in Ohms
         alpha (float): Exponent for phase breaking time temperature dependence
-        tau_SO (float, optional): Spin-orbit scattering time in seconds
+        tau_SO (float, np.ndarray, optional): Spin-orbit scattering time in seconds
 
     Returns:
         tuple[np.ndarray, dict]: Resistance in Ohms and dictionary of contributions
@@ -266,7 +266,10 @@ def fscope_fluc(
     results = mc_sigma(t, h, Tc_tau, Tc_tauphi)
     fluc_total = np.sum(results,axis=0)
     WL = weak_localization(tau,tau_phi) # already in Ohms^-1
-    WAL = weak_antilocalization(tau_SO,tau_phi) if tau_SO else np.zeros(len(Ts)) # already in Ohms^-1
+    if tau_SO is not None:
+        WAL = weak_antilocalization(tau_SO,tau_phi)
+    else:
+        WAL = np.zeros(len(Ts)) # already in Ohms^-1
     conversion = e**2/hbar
     sigma0=1/R0
     R = 1/(sigma0 + fluc_total*conversion + WL + WAL)
@@ -297,11 +300,11 @@ def weak_localization(tau: float, tau_phi: np.ndarray) -> np.ndarray:
     """
     return -e**2/(2*pi**2*hbar)*np.log(tau_phi/tau)
 
-def weak_antilocalization(tau_SO: float, tau_phi: np.ndarray) -> np.ndarray:
+def weak_antilocalization(tau_SO: float | np.ndarray, tau_phi: np.ndarray) -> np.ndarray:
     """Calculate the weak antilocalization correction to the conductance.
 
     Args:
-        tau_SO (float): Spin-orbit scattering time in seconds
+        tau_SO (float, np.ndarray): Spin-orbit scattering time in seconds
         tau_phi (array): Phase breaking time in seconds
 
     Returns:

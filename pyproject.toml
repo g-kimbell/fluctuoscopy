@@ -1,14 +1,19 @@
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
 
 [project]
 name = "fluctuoscopy"
 description = "A Python wrapper with extras for the FSCOPE program, written by Andreas Glatz"
 license = {text = "MIT AND BSD-2-CLAUSE"}
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.9"
 version = "0.1.0"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
 dependencies = [
     "numpy",
 ]
@@ -18,8 +23,9 @@ authors = [
     {name = "Andreas Glatz"},
 ]
 
-[tool.setuptools.package-data]
-"fluctuoscopy" = ["bin/*"]
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "fluctuoscopy._fluctuoscopy"
 
 [tool.ruff]
 line-length = 120
