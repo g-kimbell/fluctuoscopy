@@ -7,8 +7,11 @@ import pytest
 from fluctuoscopy.fluctuosco import (
     AL2D,
     fscope,
-    fscope_fluc,
-    fscope_full_func,
+    fscope_c,
+    fscope_executable,
+    fscope_full,
+    mc_sigma,
+    mc_sigma_rust,
     weak_antilocalization,
     weak_localization,
 )
@@ -20,15 +23,15 @@ k_B = 1.38064852e-23
 pi = np.pi
 
 class TestFscopeFullFunc(unittest.TestCase):
-    """Tests for fscope_full_func function."""
+    """Tests for fscope_executable function."""
 
-    def test_fscope_full_func_empty(self) -> None:
-        """Test fscope_full_func with empty parameters."""
+    def test_fscope_executable_empty(self) -> None:
+        """Test fscope_executable with empty parameters."""
         with pytest.raises(ValueError):
-            fscope_full_func({})
+            fscope_executable({})
 
-    def test_fscope_full_func_basic(self) -> None:
-        """Test fscope_full_func with one set of input parameters."""
+    def test_fscope_executable_basic(self) -> None:
+        """Test fscope_executable with one set of input parameters."""
         params = {
             "ctype": 100,
             "tmin": 2,
@@ -40,7 +43,7 @@ class TestFscopeFullFunc(unittest.TestCase):
             "Tc0tau": 1e-2,
             "delta": 1e-3,
         }
-        output = fscope_full_func(params)
+        output = fscope_executable(params)
         result = [float(r) for r in output[-1].split("\t")]
         expected = [
             2.0,
@@ -61,7 +64,7 @@ class TestFscope(unittest.TestCase):
     def test_fscope_empty(self) -> None:
         """Test fscope with empty parameters."""
         with pytest.raises(ValueError):
-            fscope({})
+            fscope_full({})
 
     def test_fscope_basic(self) -> None:
         """Test fscope with one set of input parameters."""
@@ -76,7 +79,7 @@ class TestFscope(unittest.TestCase):
             "Tc0tau": 1e-2,
             "delta": 1e-3,
         }
-        result = fscope(params)
+        result = fscope_full(params)
         expected = { # ignore header
             "t": np.array([2.]),
             "h": np.array([0.01]),
@@ -145,10 +148,10 @@ class TestAL2D(unittest.TestCase):
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
 
 class TestFscopeFluc(unittest.TestCase):
-    """Tests for fscope_fluc function."""
+    """Tests for fscope_c function."""
 
-    def test_fscope_fluc(self) -> None:
-        """Test fscope_fluc with basic parameters."""
+    def test_fscope_c(self) -> None:
+        """Test fscope_c with basic parameters."""
         Ts = np.array([1.5, 2.0, 2.5])
         Tc = 1.0
         tau = 1e-12
@@ -172,14 +175,14 @@ class TestFscopeFluc(unittest.TestCase):
             "Total": np.array([5.66353091e-05, -2.28075165e-05, -4.67875570e-05]),
         }
 
-        result_R, result_results = fscope_fluc(Ts, Tc, tau, tauphi0, R0, alpha, tau_SO)
+        result_R, result_results = fscope_c(Ts, Tc, tau, tauphi0, R0, alpha, tau_SO)
 
         np.testing.assert_array_almost_equal(result_R, expected_R, decimal=5)
         for key, value in expected_results.items():
             np.testing.assert_array_almost_equal(result_results[key], value, decimal=5)
 
     def test_fscope_R_with_tau_SO(self) -> None:
-        """Test fscope_fluc with tau_SO."""
+        """Test fscope_c with tau_SO."""
         Ts = np.array([1.5, 2.0, 2.5])
         Tc = 1.0
         tau = 1e-12
@@ -202,11 +205,44 @@ class TestFscopeFluc(unittest.TestCase):
             "Total": np.array([0.0003292758061, 0.0002445116666, 0.00021640409570]),
         }
 
-        result_R, result_results = fscope_fluc(Ts, Tc, tau, tauphi0, R0, alpha, tau_SO)
+        result_R, result_results = fscope_c(Ts, Tc, tau, tauphi0, R0, alpha, tau_SO)
 
         np.testing.assert_array_almost_equal(result_R, expected_R, decimal=5)
         for key, value in expected_results.items():
             np.testing.assert_array_almost_equal(result_results[key], value, decimal=5)
+
+class TestRustVsC(unittest.TestCase):
+    """Compare results from the rust and C implementations of fluctuation calculation."""
+
+    def test_mc_sigma_rust_c(self) -> None:
+        """Check the two implementations give the same results."""
+        t = np.array([1.1, 1.2, 1.3])
+        h = np.array([0.01]*3)
+        tau = np.array([0.001]*3)
+        tauphi = np.array([0.001]*3)
+        res1 = mc_sigma(t, h, tau, tauphi)  # returns np.array
+        res2 = mc_sigma_rust(t, h, tau, tauphi)  # returns dict
+        np.testing.assert_array_almost_equal(res1[0], res2["al"], decimal=6)
+        np.testing.assert_array_almost_equal(res1[1], res2["mtsum"], decimal=6)
+        np.testing.assert_array_almost_equal(res1[2], res2["mtint"], decimal=6)
+        np.testing.assert_array_almost_equal(res1[3], res2["dos"], decimal=6)
+        np.testing.assert_array_almost_equal(res1[4], res2["dcr"], decimal=6)
+
+    def test_fscope_rust_c(self) -> None:
+        """Check the two implementations give the same results."""
+        Ts = np.array([1.5, 2.0, 2.5])
+        Tc = 1.0
+        tau = 1e-12
+        tauphi0 = pi*hbar/(8*k_B*1e-3)
+        R0 = 1000.0
+        alpha = -1.0
+        tau_SO = 1e-15
+        R_rs, res_rs = fscope(Ts,Tc,tau,tauphi0,R0,alpha,tau_SO)
+        R_c, res_c = fscope_c(Ts,Tc,tau,tauphi0,R0,alpha,tau_SO)
+        np.testing.assert_array_almost_equal(R_rs, R_c, decimal=5)
+        for key, value in res_rs.items():
+            np.testing.assert_array_almost_equal(value, res_c[key], decimal=5)
+
 
 if __name__ == "__main__":
     unittest.main()
