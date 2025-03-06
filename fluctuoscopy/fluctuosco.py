@@ -3,7 +3,7 @@
 This module provides a python interface to the FSCOPE program, which calculates fluctuation
 conductivity components in superconductors under various conditions.
 
-The function 'fscope_fluc' is a wrapper of the fscope full fluctuation conductivity calculation,
+The function 'fscope_c' is a wrapper of the fscope full fluctuation conductivity calculation,
 including additional localization contributions based on given scattering rates. It returns the
 resistance, fluctuation and localization contributions from a given temperature array and inputs,
 all in SI units.
@@ -24,6 +24,8 @@ import warnings
 from pathlib import Path
 
 import numpy as np
+
+from fluctuoscopy._fluctuoscopy import mc_sigma_parallel
 
 pi = np.pi
 hbar=1.0545718176461565e-34
@@ -91,7 +93,7 @@ def get_fscope_lib() -> ctypes.CDLL | None:
         shared_library_path = base_dir / "bin" / "fluctuoscope_extC.dll"
     else:
         warnings.warn(
-            f"Unsupported operating system: {system}, mc_sigma, hc2 and fscope_fluc functions will not work",
+            f"Unsupported operating system: {system}, mc_sigma, hc2 and fscope_c functions will not work",
             stacklevel=2,
         )
         return None
@@ -141,6 +143,26 @@ def mc_sigma(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.nda
     )
     return results.reshape((len(t),5)).T
 
+def mc_sigma_rust(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.ndarray) -> dict:
+    """Calculate fluctuation conductivity components using the FSCOPE Rust library.
+
+    Args:
+        t (np.ndarray): Reduced temperature T/Tc
+        h (np.ndarray): Reduced magnetic field H/Hc2 TODO is this actually correct
+        Tc_tau (np.ndarray): Tc tau k_B / hbar (dimensionless)
+        Tc_tauphi (np.ndarray): Tc tau_phi k_B / hbar (dimensionless)
+
+    Returns:
+        dict: al, mtsum, mtint, dos, dcr in units of G0 (NOT SI)
+            al: Aslamasov-Larkin contribution
+            mtsum: Maki-Thompson sum contribution
+            mtint: Maki-Thompson integral contribution
+            dos: Density of states contribution
+            dcr: Diffusion coefficient renormalisation contribution
+
+    """
+    return mc_sigma_parallel(t, h, Tc_tau, Tc_tauphi)
+
 def hc2(t: np.ndarray) -> np.ndarray:
     """Calculate the upper critical field using the FSCOPE C library."""
     if not isinstance(t, np.ndarray):
@@ -156,7 +178,7 @@ def hc2(t: np.ndarray) -> np.ndarray:
     )
     return results
 
-def fscope_full_func(params: dict) -> list:
+def fscope_executable(params: dict) -> list:
     """Calculate the paraconductivity using the FSCOPE program.
 
     Args:
@@ -188,8 +210,8 @@ def fscope_full_func(params: dict) -> list:
     output = subprocess.check_output(command)
     return output.decode().splitlines()
 
-def fscope(params: dict | None = None) -> dict:
-    """Calculate paraconductivity using the FSCOPE program.
+def fscope_full(params: dict | None = None) -> dict:
+    """Calculate paraconductivity using the FSCOPE executable program.
 
     Args:
         params (dict):
@@ -204,7 +226,7 @@ def fscope(params: dict | None = None) -> dict:
     """
     if params is None:
         params = {}
-    output = fscope_full_func(params)
+    output = fscope_executable(params)
     if "FLUCTUOSCOPE" in output[0]:
         message = "\n".join(
             [
@@ -228,7 +250,68 @@ def fscope(params: dict | None = None) -> dict:
     result.update(dict(zip(col_names, data)))
     return result
 
-def fscope_fluc(
+def fscope(
+    Ts: float | np.ndarray,
+    Tc: float | np.ndarray,
+    tau: float | np.ndarray,
+    tau_phi0: float | np.ndarray,
+    R0: float | np.ndarray,
+    alpha: float | np.ndarray = -1.0,
+    tau_SO: float | np.ndarray | None = None,
+) -> tuple[np.ndarray, dict]:
+    """Get resistance, fluctuation and localization contributions."""
+    t = Ts/Tc
+    Tc_tau = Tc*tau*k/hbar
+    tau_phi = tau_phi0*Ts**alpha
+    Tc_tauphi = Tc*tau_phi*k/hbar
+
+    # make sure all inputs are arrays, find the longest array
+    lens = set()
+    for val in locals().values():
+        if isinstance(val, np.ndarray):
+            lens |= {len(val)}
+    if len(lens) > 1:
+        msg = "All input arrays must have the same length"
+        raise ValueError(msg)
+    max_len = 1 if len(lens) == 0 else lens.pop()
+    print(f"{max_len=}")
+    if not isinstance(t, np.ndarray):
+        t = np.full(max_len, t)
+    if not isinstance(Tc_tau, np.ndarray):
+        Tc_tau = np.full(max_len, Tc_tau)
+    if not isinstance(tau_phi, np.ndarray):
+        tau_phi = np.full(max_len, tau_phi)
+    if not isinstance(Tc_tauphi, np.ndarray):
+        Tc_tauphi = np.full(max_len, Tc_tauphi)
+    h = np.full(max_len, 0.01)
+
+    print(f"{locals()=}")
+
+    # Fluctuation components in units of G0
+    results = mc_sigma_rust(t, h, Tc_tau, Tc_tauphi)
+    results = {key: np.array(val) for key, val in results.items()}
+    fluc_total = (results["al"] + results["mtsum"] + results["mtint"] + results["dos"] + results["dcr"])
+    # WL and WAL already in Ohms^-1
+    WL = weak_localization(tau,tau_phi)
+    WAL = weak_antilocalization(tau_SO,tau_phi) if tau_SO is not None else np.zeros(max_len)
+    conversion = e**2/hbar
+    sigma0=1/R0
+    R: np.ndarray = 1/(sigma0 + fluc_total*conversion + WL + WAL)
+    results_dict = {
+        "AL": results["al"]*conversion,
+        "MTsum": results["mtsum"]*conversion,
+        "MTint": results["mtint"]*conversion,
+        "DOS": results["dos"]*conversion,
+        "DCR": results["dcr"]*conversion,
+        "Fluctuation_tot": fluc_total*conversion,
+        "WL": WL,
+        "WAL": WAL,
+        "MT": (results["mtsum"] + results["mtint"])*conversion,
+        "Total": fluc_total*conversion + WL + WAL,
+    }
+    return R, results_dict
+
+def fscope_c(
     Ts: np.ndarray,
     Tc: float,
     tau: float,
@@ -287,7 +370,7 @@ def fscope_fluc(
     }
     return R, results_dict
 
-def weak_localization(tau: float, tau_phi: np.ndarray) -> np.ndarray:
+def weak_localization(tau: float | np.ndarray, tau_phi: float | np.ndarray) -> np.ndarray:
     """Calculate the weak localization correction to the conductance.
 
     Args:
@@ -298,7 +381,7 @@ def weak_localization(tau: float, tau_phi: np.ndarray) -> np.ndarray:
         array: The correction to conductance in Siemens (Ohms^-1)
 
     """
-    return -e**2/(2*pi**2*hbar)*np.log(tau_phi/tau)
+    return np.array(-e**2/(2*pi**2*hbar)*np.log(tau_phi/tau))
 
 def weak_antilocalization(tau_SO: float | np.ndarray, tau_phi: np.ndarray) -> np.ndarray:
     """Calculate the weak antilocalization correction to the conductance.

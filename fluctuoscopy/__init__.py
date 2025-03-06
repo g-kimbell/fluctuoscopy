@@ -2,10 +2,12 @@
 from .fluctuosco import (
     AL2D,
     fscope,
-    fscope_fluc,
-    fscope_full_func,
+    fscope_c,
+    fscope_executable,
+    fscope_full,
     hc2,
     mc_sigma,
+    mc_sigma_rust,
     weak_antilocalization,
     weak_localization,
 )
@@ -13,8 +15,8 @@ from .fluctuosco import (
 __all__ = [
     "AL2D",
     "fscope",
-    "fscope_fluc",
-    "fscope_full_func",
+    "fscope_c",
+    "fscope_executable",
     "hc2",
     "mc_sigma",
     "weak_antilocalization",
