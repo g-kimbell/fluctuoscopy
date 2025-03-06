@@ -1,17 +1,19 @@
 """Fluctuation conductivity of superconducting films in Python.
 
-This module provides a python interface to the FSCOPE program, which calculates fluctuation
-conductivity components in superconductors under various conditions.
+The function 'fscope' calculates the superconducting fluctuation and localization contributions
+to the sheet conductance of a 2D superconducting film. The function uses SI units and returns
+the total sheet resistance, useful for comparing with experimental data.
 
-The function 'fscope_c' is a wrapper of the fscope full fluctuation conductivity calculation,
-including additional localization contributions based on given scattering rates. It returns the
-resistance, fluctuation and localization contributions from a given temperature array and inputs,
-all in SI units.
+The calculations are based on the FSCOPE program, a C++ program written by Andreas Glatz. The
+fscope uses a Rust port of the FSCOPE mc_sigma function including optimizations and
+parallelization.
 
-The function 'fscope' gives access to the full functionality of the FSCOPE program, where
-inputs and outputs are passed as a Python dictionary.
+The function 'fscope_executable' provides a Python interface to the original FSCOPE program,
+which has been compiled for Windows x86_64, Linux x86_64, MacOS x86_64 and arm64. If these do
+not work on your system, you can compile the FSCOPE program from the source code available at
+github.com/andreasglatz/FSCOPE, or github.com/g-kimbell/FSCOPE to include the shared library.
 
-(c) 2024 Graham Kimbell, Ulderico Filipozzi, Andreas Glatz.
+(c) 2025 Graham Kimbell, Ulderico Filipozzi, Andreas Glatz.
 """
 
 from __future__ import annotations
@@ -274,7 +276,6 @@ def fscope(
         msg = "All input arrays must have the same length"
         raise ValueError(msg)
     max_len = 1 if len(lens) == 0 else lens.pop()
-    print(f"{max_len=}")
     if not isinstance(t, np.ndarray):
         t = np.full(max_len, t)
     if not isinstance(Tc_tau, np.ndarray):
@@ -284,8 +285,6 @@ def fscope(
     if not isinstance(Tc_tauphi, np.ndarray):
         Tc_tauphi = np.full(max_len, Tc_tauphi)
     h = np.full(max_len, 0.01)
-
-    print(f"{locals()=}")
 
     # Fluctuation components in units of G0
     results = mc_sigma_rust(t, h, Tc_tau, Tc_tauphi)
@@ -346,13 +345,12 @@ def fscope_c(
     Tc_tau = np.array([Tc*tau*k/hbar]*len(Ts))
     tau_phi = tau_phi0*np.array(Ts)**alpha
     Tc_tauphi = Tc*tau_phi*k/hbar
+    # Fluctuation components in units of G0
     results = mc_sigma(t, h, Tc_tau, Tc_tauphi)
     fluc_total = np.sum(results,axis=0)
-    WL = weak_localization(tau,tau_phi) # already in Ohms^-1
-    if tau_SO is not None:
-        WAL = weak_antilocalization(tau_SO,tau_phi)
-    else:
-        WAL = np.zeros(len(Ts)) # already in Ohms^-1
+    # WL and WAL already in Ohms^-1
+    WL = weak_localization(tau,tau_phi)
+    WAL = weak_antilocalization(tau_SO,tau_phi) if tau_SO is not None else np.zeros(len(Ts))
     conversion = e**2/hbar
     sigma0=1/R0
     R = 1/(sigma0 + fluc_total*conversion + WL + WAL)

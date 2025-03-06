@@ -49,6 +49,7 @@ lint.ignore = [
     "D203",
     "D213",
     "COM812",
+    "N803",
 ]
 fix = true
 
