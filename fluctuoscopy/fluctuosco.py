@@ -295,17 +295,18 @@ def fscope(
     WAL = weak_antilocalization(tau_SO,tau_phi) if tau_SO is not None else np.zeros(max_len)
     conversion = e**2/hbar
     sigma0=1/R0
-    R: np.ndarray = 1/(sigma0 + fluc_total*conversion + WL + WAL)
+    R: np.ndarray = ~results["sc"]/(sigma0 + fluc_total*conversion + WL + WAL)
     results_dict = {
         "AL": results["al"]*conversion,
         "MTsum": results["mtsum"]*conversion,
         "MTint": results["mtint"]*conversion,
+        "MT": (results["mtsum"] + results["mtint"])*conversion,
         "DOS": results["dos"]*conversion,
         "DCR": results["dcr"]*conversion,
         "Fluctuation_tot": fluc_total*conversion,
         "WL": WL,
         "WAL": WAL,
-        "MT": (results["mtsum"] + results["mtint"])*conversion,
+        "SC": results["sc"],
         "Total": fluc_total*conversion + WL + WAL,
     }
     return R, results_dict

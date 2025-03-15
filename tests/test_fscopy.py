@@ -240,7 +240,7 @@ class TestRustVsC(unittest.TestCase):
         R_rs, res_rs = fscope(Ts,Tc,tau,tauphi0,R0,alpha,tau_SO)
         R_c, res_c = fscope_c(Ts,Tc,tau,tauphi0,R0,alpha,tau_SO)
         np.testing.assert_array_almost_equal(R_rs, R_c, decimal=5)
-        for key, value in res_rs.items():
+        for key, value in res_c.items():
             np.testing.assert_array_almost_equal(value, res_c[key], decimal=5)
 
 
