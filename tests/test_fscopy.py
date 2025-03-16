@@ -5,13 +5,14 @@ import numpy as np
 import pytest
 
 from fluctuoscopy.fluctuosco import (
-    AL2D,
+    _fscope_executable,
+    fluc_dimless,
+    fluc_dimless_c,
     fscope,
     fscope_c,
-    fscope_executable,
     fscope_full,
-    mc_sigma,
-    mc_sigma_rust,
+    hc2,
+    simplified_al,
     weak_antilocalization,
     weak_localization,
 )
@@ -19,7 +20,7 @@ from fluctuoscopy.fluctuosco import (
 e = 1.60217662e-19
 m_e = 9.10938356e-31
 hbar = 1.0545718e-34
-k_B = 1.38064852e-23
+k_B = 1.38064852e-23  # noqa: N816
 pi = np.pi
 
 class TestFscopeFullFunc(unittest.TestCase):
@@ -27,8 +28,8 @@ class TestFscopeFullFunc(unittest.TestCase):
 
     def test_fscope_executable_empty(self) -> None:
         """Test fscope_executable with empty parameters."""
-        with pytest.raises(ValueError):
-            fscope_executable({})
+        with pytest.raises(ValueError, match="No computation type specified.*"):
+            _fscope_executable({})
 
     def test_fscope_executable_basic(self) -> None:
         """Test fscope_executable with one set of input parameters."""
@@ -43,7 +44,7 @@ class TestFscopeFullFunc(unittest.TestCase):
             "Tc0tau": 1e-2,
             "delta": 1e-3,
         }
-        output = fscope_executable(params)
+        output = _fscope_executable(params)
         result = [float(r) for r in output[-1].split("\t")]
         expected = [
             2.0,
@@ -63,7 +64,7 @@ class TestFscope(unittest.TestCase):
 
     def test_fscope_empty(self) -> None:
         """Test fscope with empty parameters."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="No computation type specified.*"):
             fscope_full({})
 
     def test_fscope_basic(self) -> None:
@@ -116,35 +117,35 @@ class TestWeakAntilocalization(unittest.TestCase):
         result = weak_antilocalization(tau_SO, tau_phi)
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
 
-class TestAL2D(unittest.TestCase):
-    """Tests for AL2D function."""
+class TestSimplifiedAL(unittest.TestCase):
+    """Tests for simplified_al function."""
 
     def test_al2d_basic(self) -> None:
-        """Test AL2D with basic parameters."""
+        """Test simplified_al with basic parameters."""
         Ts = np.array([1.5, 2.0, 2.5])
         Tc = 1.0
         R0 = 10.0
         expected = 1 / (1 / R0 +  e**2 / (16*hbar) / np.log(Ts / Tc)) * np.heaviside(Ts - Tc, 0)
-        result = AL2D(Ts, Tc, R0)
+        result = simplified_al(Ts, Tc, R0)
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
 
-    def test_al2d_with_custom_C(self) -> None:
-        """Test AL2D with custom C."""
+    def test_al2d_with_custom_c(self) -> None:
+        """Test simplified_al with custom C."""
         Ts = np.array([1.5, 2.0, 2.5])
         Tc = 1.0
         R0 = 10.0
         C = 1.0
         expected = 1 / (1 / R0 + C / np.log(Ts / Tc)) * np.heaviside(Ts - Tc, 0)
-        result = AL2D(Ts, Tc, R0, C)
+        result = simplified_al(Ts, Tc, R0, C)
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
 
     def test_al2d_below_tc(self) -> None:
-        """Test AL2D with Ts below Tc."""
+        """Test simplified_al with Ts below Tc."""
         Ts = np.array([1.0, 1.5, 1.9])
         Tc = 2.0
         R0 = 10.0
         expected = np.zeros_like(Ts)
-        result = AL2D(Ts, Tc, R0)
+        result = simplified_al(Ts, Tc, R0)
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
 
 class TestFscopeFluc(unittest.TestCase):
@@ -181,7 +182,7 @@ class TestFscopeFluc(unittest.TestCase):
         for key, value in expected_results.items():
             np.testing.assert_array_almost_equal(result_results[key], value, decimal=5)
 
-    def test_fscope_R_with_tau_SO(self) -> None:
+    def test_fscope_with_tau_so(self) -> None:
         """Test fscope_c with tau_SO."""
         Ts = np.array([1.5, 2.0, 2.5])
         Tc = 1.0
@@ -214,14 +215,14 @@ class TestFscopeFluc(unittest.TestCase):
 class TestRustVsC(unittest.TestCase):
     """Compare results from the rust and C implementations of fluctuation calculation."""
 
-    def test_mc_sigma_rust_c(self) -> None:
+    def test_fluc_dimless_c(self) -> None:
         """Check the two implementations give the same results."""
         t = np.array([1.1, 1.2, 1.3])
         h = np.array([0.01]*3)
         tau = np.array([0.001]*3)
         tauphi = np.array([0.001]*3)
-        res1 = mc_sigma(t, h, tau, tauphi)  # returns np.array
-        res2 = mc_sigma_rust(t, h, tau, tauphi)  # returns dict
+        res1 = fluc_dimless_c(t, h, tau, tauphi)  # returns np.array
+        res2 = fluc_dimless(t, h, tau, tauphi)  # returns dict
         np.testing.assert_array_almost_equal(res1[0], res2["al"], decimal=6)
         np.testing.assert_array_almost_equal(res1[1], res2["mtsum"], decimal=6)
         np.testing.assert_array_almost_equal(res1[2], res2["mtint"], decimal=6)
@@ -242,6 +243,25 @@ class TestRustVsC(unittest.TestCase):
         np.testing.assert_array_almost_equal(R_rs, R_c, decimal=5)
         for key, value in res_c.items():
             np.testing.assert_array_almost_equal(value, res_c[key], decimal=5)
+
+    def test_hc2(self) -> None:
+        """Check the two implementations give the same results."""
+        t = np.linspace(0,1.1,12)
+        expect = np.array([
+            0.6926728737556,
+            0.6787010770604,
+            0.6417110293611,
+            0.5886332291516,
+            0.5239696917854,
+            0.4505228358223,
+            0.3701313737292,
+            0.2840686407473,
+            0.1932568936088,
+            0.0983887684337,
+            0.0,
+            0.0,
+        ])
+        np.testing.assert_array_almost_equal(hc2(t), expect, decimal=6)
 
 
 if __name__ == "__main__":

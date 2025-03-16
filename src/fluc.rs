@@ -95,6 +95,12 @@ pub fn mc_sigma_parallel(
     Ok(dict.into())
 }
 
+#[pyfunction]
+pub fn hc2_parallel(_py: Python, t_values: Vec<f64>) -> PyResult<Vec<f64>> {
+    let hc2_values: Vec<f64> = t_values.par_iter().map(|&t| hc2(t)).collect();
+    Ok(hc2_values)
+}
+
 fn calculate_mc_sigma(t: f64, mut h: f64, tctau: f64, tctauphi: f64) -> (f64, f64, f64, f64, f64, bool) {
     // Calculate the fluctuation conductivity components
 
@@ -284,25 +290,25 @@ fn hc2(t: f64) -> f64 {
     if t >= 1.0 {
         return 0.0;
     }
-    if t < 1e-6 {
+    if t <= 0.0 {
         return HC20;
     }
     //Binary search solution of log(t)+Psi(1/2+2/pi^2*h/t)-Psi(1/2)=0
     let c = t.log(E) - C2;
-    let mut h2 = 1.0 - t;
-    let mut h1 = HC20 * h2;
-    let mut hm = 0.5*(h1+h2);
+    let mut h_low = (1.0 - t) * HC20;
+    let mut h_high = HC20;
+    let mut h_mid = 0.5 * (h_low + h_high);
     for _ in 0..32 { // <10^-9 error
-        let fm = c + digamma(0.5 + C5 * hm / t);
-        hm = 0.5 * (h1 + h2);
-        if fm < 0.0 {
-            h1 = hm;
+        let f = c + digamma(0.5 + C5 * h_mid / t);
+        if f < 0.0 {
+            h_low = h_mid;
         } else {
-            h2 = hm;
+            h_high = h_mid;
         }
+        h_mid = 0.5 * (h_low + h_high);
     }
-    0.5*(h1+h2)
-} 
+    h_mid
+}
 
 // Helper functions needed by mc_func
 fn e_n(n: i32, t: f64, h: f64, z: f64) -> (f64, f64) {

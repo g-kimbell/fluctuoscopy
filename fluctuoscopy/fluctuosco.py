@@ -1,17 +1,23 @@
 """Fluctuation conductivity of superconducting films in Python.
 
-The function 'fscope' calculates the superconducting fluctuation and localization contributions
-to the sheet conductance of a 2D superconducting film. The function uses SI units and returns
-the total sheet resistance, useful for comparing with experimental data.
+'dimless_fluc' calculates dimensionless fluctuation conductivity components for
+a 2D superconductor from dimensionless temperature, magnetic field, and
+scattering times.
 
-The calculations are based on the FSCOPE program, a C++ program written by Andreas Glatz. The
-fscope uses a Rust port of the FSCOPE mc_sigma function including optimizations and
-parallelization.
+'fscope' calculates both superconducting fluctuation and localization
+contributions to the sheet conductance of a 2D superconducting film. The
+function uses SI units and returns the total sheet resistance, useful for
+comparing with experimental data.
 
-The function 'fscope_executable' provides a Python interface to the original FSCOPE program,
-which has been compiled for Windows x86_64, Linux x86_64, MacOS x86_64 and arm64. If these do
-not work on your system, you can compile the FSCOPE program from the source code available at
-github.com/andreasglatz/FSCOPE, or github.com/g-kimbell/FSCOPE to include the shared library.
+The calculations are based on the FSCOPE program, a C++ program written by
+Andreas Glatz. The computationally intensive parts have been rewritten in Rust
+for blazingly fast (TM) performance.
+
+The function 'fscope_full' provides a Python interface to the original FSCOPE
+program, which has been compiled for Windows x86_64, Linux x86_64, MacOS x86_64
+and arm64. If these do not work on your system, you can compile the FSCOPE
+program from the source code available at github.com/andreasglatz/FSCOPE, or
+github.com/g-kimbell/FSCOPE to include the shared library.
 
 (c) 2025 Graham Kimbell, Ulderico Filipozzi, Andreas Glatz.
 """
@@ -27,7 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
-from fluctuoscopy._fluctuoscopy import mc_sigma_parallel
+from fluctuoscopy._fluctuoscopy import hc2_parallel, mc_sigma_parallel
 
 pi = np.pi
 hbar=1.0545718176461565e-34
@@ -95,7 +101,7 @@ def get_fscope_lib() -> ctypes.CDLL | None:
         shared_library_path = base_dir / "bin" / "fluctuoscope_extC.dll"
     else:
         warnings.warn(
-            f"Unsupported operating system: {system}, mc_sigma, hc2 and fscope_c functions will not work",
+            f"Unsupported operating system: {system}, fluc_dimless_c and fscope_c functions will not work",
             stacklevel=2,
         )
         return None
@@ -113,17 +119,21 @@ def get_fscope_lib() -> ctypes.CDLL | None:
 FSCOPE_EXECUTABLE = get_fscope_executable()
 FSCOPE_LIB = get_fscope_lib()
 
-def mc_sigma(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.ndarray) -> np.ndarray:
-    """Calculate fluctuation conductivity components using the FSCOPE C library.
+def fluc_dimless_c(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.ndarray) -> np.ndarray:
+    """Calculate dimensionless fluctuation conductivity components.
+
+    All input and outputs are dimensionless.
+
+    Uses C library.
 
     Args:
         t (np.ndarray): Reduced temperature T/Tc
-        h (np.ndarray): Reduced magnetic field H/Hc2 TODO is this actually correct
-        Tc_tau (np.ndarray): Tc tau k_B / hbar (dimensionless)
-        Tc_tauphi (np.ndarray): Tc tau_phi k_B / hbar (dimensionless)
+        h (np.ndarray): Reduced magnetic field H/Hc2(0)
+        Tc_tau (np.ndarray): Tc tau k_B / hbar
+        Tc_tauphi (np.ndarray): Tc tau_phi k_B / hbar
 
     Returns:
-        np.ndarray: sAL, sMTsum, sMTint, sDOS, sCC
+        np.ndarray: sAL, sMTsum, sMTint, sDOS, sCC in units of G0
             sAL: Aslamasov-Larkin contribution
             sMTsum: Maki-Thompson sum contribution
             sMTint: Maki-Thompson integral contribution
@@ -145,42 +155,46 @@ def mc_sigma(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.nda
     )
     return results.reshape((len(t),5)).T
 
-def mc_sigma_rust(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.ndarray) -> dict:
-    """Calculate fluctuation conductivity components using the FSCOPE Rust library.
+def fluc_dimless(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.ndarray) -> dict:
+    """Calculate dimensionless fluctuation conductivity components.
+
+    All input and outputs are dimensionless.
+
+    Uses Rust library.
 
     Args:
         t (np.ndarray): Reduced temperature T/Tc
-        h (np.ndarray): Reduced magnetic field H/Hc2 TODO is this actually correct
-        Tc_tau (np.ndarray): Tc tau k_B / hbar (dimensionless)
-        Tc_tauphi (np.ndarray): Tc tau_phi k_B / hbar (dimensionless)
+        h (np.ndarray): Reduced magnetic field H/Hc2(0)
+        Tc_tau (np.ndarray): Tc tau k_B / hbar
+        Tc_tauphi (np.ndarray): Tc tau_phi k_B / hbar
 
     Returns:
-        dict: al, mtsum, mtint, dos, dcr in units of G0 (NOT SI)
+        dict: al, mtsum, mtint, dos, dcr (in units of G0), sc (bool)
             al: Aslamasov-Larkin contribution
             mtsum: Maki-Thompson sum contribution
             mtint: Maki-Thompson integral contribution
             dos: Density of states contribution
             dcr: Diffusion coefficient renormalisation contribution
+            sc (bool): whether superconducting or not
 
     """
     return mc_sigma_parallel(t, h, Tc_tau, Tc_tauphi)
 
 def hc2(t: np.ndarray) -> np.ndarray:
-    """Calculate the upper critical field using the FSCOPE C library."""
-    if not isinstance(t, np.ndarray):
-        t = np.array(t)
-    results = np.zeros(len(t), dtype=np.float64)
-    if not FSCOPE_LIB:
-        msg = "FSCOPE C library not available on this operating system"
-        raise NotImplementedError(msg)
-    FSCOPE_LIB.hc2_array(
-        t.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
-        results.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
-        len(t),
-    )
-    return results
+    """Calculate the upper critical field.
 
-def fscope_executable(params: dict) -> list:
+    Uses Rust library.
+
+    Args:
+        t (np.ndarray): Reduced temperature T/Tc
+
+    Returns:
+        np.ndarray: Upper critical field in units of Hc2(0)
+
+    """
+    return hc2_parallel(t)
+
+def _fscope_executable(params: dict) -> list:
     """Calculate the paraconductivity using the FSCOPE program.
 
     Args:
@@ -228,7 +242,7 @@ def fscope_full(params: dict | None = None) -> dict:
     """
     if params is None:
         params = {}
-    output = fscope_executable(params)
+    output = _fscope_executable(params)
     if "FLUCTUOSCOPE" in output[0]:
         message = "\n".join(
             [
@@ -261,7 +275,23 @@ def fscope(
     alpha: float | np.ndarray = -1.0,
     tau_SO: float | np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """Get resistance, fluctuation and localization contributions."""
+    """Get resistance, fluctuation and localization contributions from T.
+
+    Units are SI (Ohm, seconds). Uses the parallelized C library for faster computation.
+
+    Args:
+        Ts (np.ndarray): Temperatures in Kelvin
+        Tc (float): Critical temperature in Kelvin
+        tau (float): Elastic scattering time in seconds
+        tau_phi0 (float): Phase breaking time in seconds
+        R0 (float): Normal state resistance in Ohms
+        alpha (float): Exponent for phase breaking time temperature dependence
+        tau_SO (float, np.ndarray, optional): Spin-orbit scattering time in seconds
+
+    Returns:
+        tuple[np.ndarray, dict]: Resistance in Ohms and dictionary of contributions
+
+    """
     t = Ts/Tc
     Tc_tau = Tc*tau*k/hbar
     tau_phi = tau_phi0*Ts**alpha
@@ -287,7 +317,7 @@ def fscope(
     h = np.full(max_len, 0.01)
 
     # Fluctuation components in units of G0
-    results = mc_sigma_rust(t, h, Tc_tau, Tc_tauphi)
+    results = fluc_dimless(t, h, Tc_tau, Tc_tauphi)
     results = {key: np.array(val) for key, val in results.items()}
     fluc_total = (results["al"] + results["mtsum"] + results["mtint"] + results["dos"] + results["dcr"])
     # WL and WAL already in Ohms^-1
@@ -347,7 +377,7 @@ def fscope_c(
     tau_phi = tau_phi0*np.array(Ts)**alpha
     Tc_tauphi = Tc*tau_phi*k/hbar
     # Fluctuation components in units of G0
-    results = mc_sigma(t, h, Tc_tau, Tc_tauphi)
+    results = fluc_dimless_c(t, h, Tc_tau, Tc_tauphi)
     fluc_total = np.sum(results,axis=0)
     # WL and WAL already in Ohms^-1
     WL = weak_localization(tau,tau_phi)
@@ -395,13 +425,13 @@ def weak_antilocalization(tau_SO: float | np.ndarray, tau_phi: np.ndarray) -> np
     """
     return e**2 / (2*pi**2*hbar) * np.log((1+tau_phi/tau_SO) * (1+2*tau_phi/tau_SO)**0.5)
 
-def AL2D(
+def simplified_al(
     Ts: np.ndarray,
     Tc: float,
     R0: float,
     C: float = e**2/(16*hbar),
 ) -> np.ndarray:
-    """Aslamasov-Larkin fluctuation conductance contribution.
+    """Simplified form of Aslamasov-Larkin fluctuation conductance contribution.
 
     Args:
         Ts (array): Temperatures in Kelvin
