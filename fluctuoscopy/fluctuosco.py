@@ -33,7 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
-from fluctuoscopy._fluctuoscopy import hc2_parallel, mc_sigma_parallel
+from fluctuoscopy.fluc_rs import hc2_parallel, mc_sigma_parallel
 
 pi = np.pi
 hbar=1.0545718176461565e-34

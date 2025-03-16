@@ -31,8 +31,10 @@ dev = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-module-name = "fluctuoscopy._fluctuoscopy"
+module-name = "fluctuoscopy.fluc_rs"
 include = ["fluctuoscopy/bin/*"]
+python-packages = ["fluctuoscopy"]
+editable = true
 
 [tool.ruff]
 line-length = 120
