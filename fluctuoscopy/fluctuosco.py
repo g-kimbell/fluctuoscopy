@@ -24,11 +24,9 @@ github.com/g-kimbell/FSCOPE to include the shared library.
 
 from __future__ import annotations
 
-import ctypes
 import platform
 import shlex
 import subprocess
-import warnings
 from pathlib import Path
 
 import numpy as np
@@ -89,71 +87,10 @@ def get_fscope_executable() -> Path:
     msg = f"Unsupported operating system: {system}"
     raise RuntimeError(msg)
 
-def get_fscope_lib() -> ctypes.CDLL | None:
-    """Get the FSCOPE C library based on the operating system."""
-    system = platform.system()
-    base_dir = Path(__file__).resolve().parent
-    if system == "Linux":
-        shared_library_path = base_dir / "bin" / "fluctuoscope_extC.so"
-    elif system == "Darwin":
-        shared_library_path = base_dir / "bin" / "fluctuoscope_extC.dylib"
-    elif system == "Windows":
-        shared_library_path = base_dir / "bin" / "fluctuoscope_extC.dll"
-    else:
-        warnings.warn(
-            f"Unsupported operating system: {system}, fluc_dimless_c and fscope_c functions will not work",
-            stacklevel=2,
-        )
-        return None
-
-    fscope_lib = ctypes.CDLL(str(shared_library_path))
-    fscope_lib.MC_sigma_array.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),
-                                        ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),
-                                        ctypes.POINTER(ctypes.c_double), ctypes.c_int]
-    fscope_lib.MC_sigma_array.restype = None
-    fscope_lib.hc2_array.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double), ctypes.c_int]
-    fscope_lib.hc2_array.restype = None
-    return fscope_lib
 
 # Get the path to the FSCOPE executable once at import time
 FSCOPE_EXECUTABLE = get_fscope_executable()
-FSCOPE_LIB = get_fscope_lib()
 
-def fluc_dimless_c(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.ndarray) -> np.ndarray:
-    """Calculate dimensionless fluctuation conductivity components.
-
-    All input and outputs are dimensionless.
-
-    Uses C library.
-
-    Args:
-        t (np.ndarray): Reduced temperature T/Tc
-        h (np.ndarray): Reduced magnetic field H/Hc2(0)
-        Tc_tau (np.ndarray): Tc tau k_B / hbar
-        Tc_tauphi (np.ndarray): Tc tau_phi k_B / hbar
-
-    Returns:
-        np.ndarray: sAL, sMTsum, sMTint, sDOS, sCC in units of G0
-            sAL: Aslamasov-Larkin contribution
-            sMTsum: Maki-Thompson sum contribution
-            sMTint: Maki-Thompson integral contribution
-            sDOS: Density of states contribution
-            sCC: Diffusion coefficient renormalisation contribution
-
-    """
-    results = np.zeros(5 * len(t), dtype=np.float64)
-    if not FSCOPE_LIB:
-        msg = "FSCOPE C library not available on this operating system"
-        raise NotImplementedError(msg)
-    FSCOPE_LIB.MC_sigma_array(
-        t.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
-        h.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
-        Tc_tau.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
-        Tc_tauphi.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
-        results.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
-        len(t),
-    )
-    return results.reshape((len(t),5)).T
 
 def fluc_dimless(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np.ndarray) -> dict:
     """Calculate dimensionless fluctuation conductivity components.
@@ -341,63 +278,6 @@ def fscope(
     }
     return R, results_dict
 
-def fscope_c(
-    Ts: np.ndarray,
-    Tc: float,
-    tau: float,
-    tau_phi0: float,
-    R0: float,
-    alpha: float = -1.0,
-    tau_SO: float | np.ndarray | None = None,
-) -> tuple[np.ndarray, dict]:
-    """Get resistance, fluctuation and localization contributions from T.
-
-    Units are SI (Ohm, seconds). Uses the parallelized C library for faster computation.
-
-    Args:
-        Ts (np.ndarray): Temperatures in Kelvin
-        Tc (float): Critical temperature in Kelvin
-        tau (float): Elastic scattering time in seconds
-        tau_phi0 (float): Phase breaking time in seconds
-        R0 (float): Normal state resistance in Ohms
-        alpha (float): Exponent for phase breaking time temperature dependence
-        tau_SO (float, np.ndarray, optional): Spin-orbit scattering time in seconds
-
-    Returns:
-        tuple[np.ndarray, dict]: Resistance in Ohms and dictionary of contributions
-
-    """
-    if not all(Ts > Tc):
-        msg = "All temperatures must be above the critical temperature"
-        raise ValueError(msg)
-    results = np.zeros((9,len(Ts)))
-    t = np.array(Ts)/Tc
-    h = np.zeros(len(Ts))+0.01
-    Tc_tau = np.array([Tc*tau*k/hbar]*len(Ts))
-    tau_phi = tau_phi0*np.array(Ts)**alpha
-    Tc_tauphi = Tc*tau_phi*k/hbar
-    # Fluctuation components in units of G0
-    results = fluc_dimless_c(t, h, Tc_tau, Tc_tauphi)
-    fluc_total = np.sum(results,axis=0)
-    # WL and WAL already in Ohms^-1
-    WL = weak_localization(tau,tau_phi)
-    WAL = weak_antilocalization(tau_SO,tau_phi) if tau_SO is not None else np.zeros(len(Ts))
-    conversion = e**2/hbar
-    sigma0=1/R0
-    R = 1/(sigma0 + fluc_total*conversion + WL + WAL)
-    results_dict = {
-        "AL": results[0]*conversion,
-        "MTsum": results[1]*conversion,
-        "MTint": results[2]*conversion,
-        "DOS": results[3]*conversion,
-        "DCR": results[4]*conversion,
-        "Fluctuation_tot": fluc_total*conversion,
-        "WL": WL,
-        "WAL": WAL,
-        "MT": (results[1] + results[2])*conversion,
-        "Total": fluc_total*conversion + WL + WAL,
-    }
-    return R, results_dict
 
 def weak_localization(tau: float | np.ndarray, tau_phi: float | np.ndarray) -> np.ndarray:
     """Calculate the weak localization correction to the conductance.

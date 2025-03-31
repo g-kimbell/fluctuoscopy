@@ -7,10 +7,8 @@ import pytest
 from fluctuoscopy.fluctuosco import (
     _fscope_executable,
     fluc_dimless,
-    fluc_dimless_c,
     fscope,
     fscope_c,
-    fscope_full,
     hc2,
     simplified_al,
     weak_antilocalization,
@@ -148,11 +146,47 @@ class TestSimplifiedAL(unittest.TestCase):
         result = simplified_al(Ts, Tc, R0)
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
 
+
+class TestFlucDimless(unittest.TestCase):
+    """Tests for fluc_dimless function."""
+
+    def test_fluc_dimless_basic(self) -> None:
+        """Test fluc_dimless with basic parameters."""
+        t = np.array([1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0])
+        h = np.array([0.01] * 10)
+        Tctau = np.array([0.01] * 10)
+        Tctauphi = np.array([0.01] * 10)
+
+        result = fluc_dimless(t, h, Tctau, Tctauphi)
+
+        # expected is row-wise t, h, SC, sAL, sMTsum, sMTint, sDOS, sDCR, sigma
+        expected = np.array(
+            [
+                [1.1, 0.01, 1, 5.022763e-01, -2.127955e-01, 5.515951e-03, -1.188322e-01, 2.201079e-02, 1.981753e-01],
+                [1.2, 0.01, 1, 2.135999e-01, -1.581277e-01, 3.970320e-03, -7.713061e-02, 1.675453e-02, -9.335331e-04],
+                [1.3, 0.01, 1, 1.228730e-01, -1.274563e-01, 3.185333e-03, -5.679587e-02, 1.316006e-02, -4.503382e-02],
+                [1.4, 0.01, 1, 7.980829e-02, -1.058978e-01, 2.673269e-03, -4.426497e-02, 1.037114e-02, -5.731012e-02],
+                [1.5, 0.01, 1, 5.566635e-02, -9.045830e-02, 2.314810e-03, -3.583477e-02, 8.395010e-03, -5.991690e-02],
+                [1.6, 0.01, 1, 4.037312e-02, -7.809604e-02, 2.035380e-03, -2.964498e-02, 6.801725e-03, -5.853079e-02],
+                [1.7, 0.01, 1, 2.997796e-02, -6.783675e-02, 1.805853e-03, -2.487227e-02, 5.500933e-03, -5.542427e-02],
+                [1.8, 0.01, 1, 2.282688e-02, -5.972182e-02, 1.622634e-03, -2.119898e-02, 4.530199e-03, -5.194108e-02],
+                [1.9, 0.01, 1, 1.758811e-02, -5.276137e-02, 1.464577e-03, -1.821242e-02, 3.727568e-03, -4.819353e-02],
+                [2.0, 0.01, 1, 1.365203e-02, -4.670521e-02, 1.325284e-03, -1.573297e-02, 3.060543e-03, -4.440032e-02],
+            ],
+        )
+        np.testing.assert_array_almost_equal(result["sc"], ~expected[:, 2].astype(bool), decimal=6)
+        np.testing.assert_array_almost_equal(result["al"], expected[:, 3], decimal=6)
+        np.testing.assert_array_almost_equal(result["mtsum"], expected[:, 4], decimal=6)
+        np.testing.assert_array_almost_equal(result["mtint"], expected[:, 5], decimal=6)
+        np.testing.assert_array_almost_equal(result["dos"], expected[:, 6], decimal=6)
+        np.testing.assert_array_almost_equal(result["dcr"], expected[:, 7], decimal=6)
+
+
 class TestFscopeFluc(unittest.TestCase):
-    """Tests for fscope_c function."""
+    """Tests for fscope function."""
 
     def test_fscope_c(self) -> None:
-        """Test fscope_c with basic parameters."""
+        """Test fscope with basic parameters."""
         Ts = np.array([1.5, 2.0, 2.5])
         Tc = 1.0
         tau = 1e-12
@@ -176,14 +210,14 @@ class TestFscopeFluc(unittest.TestCase):
             "Total": np.array([5.66353091e-05, -2.28075165e-05, -4.67875570e-05]),
         }
 
-        result_R, result_results = fscope_c(Ts, Tc, tau, tauphi0, R0, alpha, tau_SO)
+        result_R, result_results = fscope(Ts, Tc, tau, tauphi0, R0, alpha, tau_SO)
 
         np.testing.assert_array_almost_equal(result_R, expected_R, decimal=5)
         for key, value in expected_results.items():
             np.testing.assert_array_almost_equal(result_results[key], value, decimal=5)
 
     def test_fscope_with_tau_so(self) -> None:
-        """Test fscope_c with tau_SO."""
+        """Test fscope with tau_SO."""
         Ts = np.array([1.5, 2.0, 2.5])
         Tc = 1.0
         tau = 1e-12
@@ -206,61 +240,35 @@ class TestFscopeFluc(unittest.TestCase):
             "Total": np.array([0.0003292758061, 0.0002445116666, 0.00021640409570]),
         }
 
-        result_R, result_results = fscope_c(Ts, Tc, tau, tauphi0, R0, alpha, tau_SO)
+        result_R, result_results = fscope(Ts, Tc, tau, tauphi0, R0, alpha, tau_SO)
 
         np.testing.assert_array_almost_equal(result_R, expected_R, decimal=5)
         for key, value in expected_results.items():
             np.testing.assert_array_almost_equal(result_results[key], value, decimal=5)
 
-class TestRustVsC(unittest.TestCase):
-    """Compare results from the rust and C implementations of fluctuation calculation."""
 
-    def test_fluc_dimless_c(self) -> None:
-        """Check the two implementations give the same results."""
-        t = np.array([1.1, 1.2, 1.3])
-        h = np.array([0.01]*3)
-        tau = np.array([0.001]*3)
-        tauphi = np.array([0.001]*3)
-        res1 = fluc_dimless_c(t, h, tau, tauphi)  # returns np.array
-        res2 = fluc_dimless(t, h, tau, tauphi)  # returns dict
-        np.testing.assert_array_almost_equal(res1[0], res2["al"], decimal=6)
-        np.testing.assert_array_almost_equal(res1[1], res2["mtsum"], decimal=6)
-        np.testing.assert_array_almost_equal(res1[2], res2["mtint"], decimal=6)
-        np.testing.assert_array_almost_equal(res1[3], res2["dos"], decimal=6)
-        np.testing.assert_array_almost_equal(res1[4], res2["dcr"], decimal=6)
-
-    def test_fscope_rust_c(self) -> None:
-        """Check the two implementations give the same results."""
-        Ts = np.array([1.5, 2.0, 2.5])
-        Tc = 1.0
-        tau = 1e-12
-        tauphi0 = pi*hbar/(8*k_B*1e-3)
-        R0 = 1000.0
-        alpha = -1.0
-        tau_SO = 1e-15
-        R_rs, res_rs = fscope(Ts,Tc,tau,tauphi0,R0,alpha,tau_SO)
-        R_c, res_c = fscope_c(Ts,Tc,tau,tauphi0,R0,alpha,tau_SO)
-        np.testing.assert_array_almost_equal(R_rs, R_c, decimal=5)
-        for key, value in res_c.items():
-            np.testing.assert_array_almost_equal(value, res_c[key], decimal=5)
+class TestHC2(unittest.TestCase):
+    """Check Hc2 rust port gives expected results."""
 
     def test_hc2(self) -> None:
-        """Check the two implementations give the same results."""
-        t = np.linspace(0,1.1,12)
-        expect = np.array([
-            0.6926728737556,
-            0.6787010770604,
-            0.6417110293611,
-            0.5886332291516,
-            0.5239696917854,
-            0.4505228358223,
-            0.3701313737292,
-            0.2840686407473,
-            0.1932568936088,
-            0.0983887684337,
-            0.0,
-            0.0,
-        ])
+        """Compare Hc2 rust to reuslts from C++ implementation."""
+        t = np.linspace(0, 1.1, 12)
+        expect = np.array(
+            [
+                0.6926728737556,
+                0.6787010770604,
+                0.6417110293611,
+                0.5886332291516,
+                0.5239696917854,
+                0.4505228358223,
+                0.3701313737292,
+                0.2840686407473,
+                0.1932568936088,
+                0.0983887684337,
+                0.0,
+                0.0,
+            ],
+        )
         np.testing.assert_array_almost_equal(hc2(t), expect, decimal=6)
 
 
