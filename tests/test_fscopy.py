@@ -1,4 +1,5 @@
 """Tests for fluctuoscopy.fluctuosco.py module."""
+
 import unittest
 
 import numpy as np
@@ -8,7 +9,7 @@ from fluctuoscopy.fluctuosco import (
     _fscope_executable,
     fluc_dimless,
     fscope,
-    fscope_c,
+    fscope_full,
     hc2,
     simplified_al,
     weak_antilocalization,
@@ -20,6 +21,7 @@ m_e = 9.10938356e-31
 hbar = 1.0545718e-34
 k_B = 1.38064852e-23  # noqa: N816
 pi = np.pi
+
 
 class TestFscopeFullFunc(unittest.TestCase):
     """Tests for fscope_executable function."""
@@ -57,6 +59,7 @@ class TestFscopeFullFunc(unittest.TestCase):
         ]
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
 
+
 class TestFscope(unittest.TestCase):
     """Tests for fscope function."""
 
@@ -79,10 +82,10 @@ class TestFscope(unittest.TestCase):
             "delta": 1e-3,
         }
         result = fscope_full(params)
-        expected = { # ignore header
-            "t": np.array([2.]),
+        expected = {  # ignore header
+            "t": np.array([2.0]),
             "h": np.array([0.01]),
-            "SC": np.array([1.]),
+            "SC": np.array([1.0]),
             "sAL": np.array([0.01365203]),
             "sMTsum": np.array([-0.04670521]),
             "sMTint": np.array([0.41869621]),
@@ -93,6 +96,7 @@ class TestFscope(unittest.TestCase):
         for key, value in expected.items():
             np.testing.assert_array_almost_equal(result[key], value, decimal=6)
 
+
 class TestWeakLocalization(unittest.TestCase):
     """Tests for weak_localization function."""
 
@@ -100,9 +104,10 @@ class TestWeakLocalization(unittest.TestCase):
         """Test weak_localization with one set of parameters."""
         tau = 1e-12
         tau_phi = np.array([1e-11, 2e-11, 3e-11])
-        expected = -e**2 / (2 * np.pi**2 * hbar) * np.log(tau_phi / tau)
+        expected = -(e**2) / (2 * np.pi**2 * hbar) * np.log(tau_phi / tau)
         result = weak_localization(tau, tau_phi)
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
+
 
 class TestWeakAntilocalization(unittest.TestCase):
     """Tests for weak_antilocalization function."""
@@ -111,9 +116,10 @@ class TestWeakAntilocalization(unittest.TestCase):
         """Test weak_antilocalization with one set of parameters."""
         tau_SO = 1e-12
         tau_phi = np.array([1e-11, 2e-11, 3e-11])
-        expected = e**2 / (2 * np.pi**2 * hbar) * np.log((1 + tau_phi / tau_SO) * (1 + 2 * tau_phi / tau_SO)**0.5)
+        expected = e**2 / (2 * np.pi**2 * hbar) * np.log((1 + tau_phi / tau_SO) * (1 + 2 * tau_phi / tau_SO) ** 0.5)
         result = weak_antilocalization(tau_SO, tau_phi)
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
+
 
 class TestSimplifiedAL(unittest.TestCase):
     """Tests for simplified_al function."""
@@ -123,7 +129,7 @@ class TestSimplifiedAL(unittest.TestCase):
         Ts = np.array([1.5, 2.0, 2.5])
         Tc = 1.0
         R0 = 10.0
-        expected = 1 / (1 / R0 +  e**2 / (16*hbar) / np.log(Ts / Tc)) * np.heaviside(Ts - Tc, 0)
+        expected = 1 / (1 / R0 + e**2 / (16 * hbar) / np.log(Ts / Tc)) * np.heaviside(Ts - Tc, 0)
         result = simplified_al(Ts, Tc, R0)
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
 
@@ -191,7 +197,7 @@ class TestFscopeFluc(unittest.TestCase):
         Tc = 1.0
         tau = 1e-12
         delta0 = 1e-3
-        tauphi0 = pi*hbar/(8*k_B*delta0)
+        tauphi0 = pi * hbar / (8 * k_B * delta0)
         R0 = 1000.0
         alpha = -1
         tau_SO = None
@@ -205,7 +211,7 @@ class TestFscopeFluc(unittest.TestCase):
             "DCR": np.array([5.54148708e-08, 1.42590054e-08, 4.65064346e-09]),
             "Fluctuation_tot": np.array([1.50363672e-04, 6.73733038e-05, 4.06415750e-05]),
             "WL": np.array([-9.37283634e-05, -9.01808203e-05, -8.74291320e-05]),
-            "WAL": np.array([0., 0., 0.]),
+            "WAL": np.array([0.0, 0.0, 0.0]),
             "MT": np.array([1.51202612e-04, 6.79063452e-05, 4.09035928e-05]),
             "Total": np.array([5.66353091e-05, -2.28075165e-05, -4.67875570e-05]),
         }
@@ -222,7 +228,7 @@ class TestFscopeFluc(unittest.TestCase):
         Tc = 1.0
         tau = 1e-12
         delta0 = 1e-3
-        tauphi0 = pi*hbar/(8*k_B*delta0)
+        tauphi0 = pi * hbar / (8 * k_B * delta0)
         R0 = 1000.0
         alpha = -1
         tau_SO = 1e-15

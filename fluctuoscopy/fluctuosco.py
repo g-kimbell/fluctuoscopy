@@ -34,10 +34,10 @@ import numpy as np
 from fluctuoscopy.fluc_rs import hc2_parallel, mc_sigma_parallel
 
 pi = np.pi
-hbar=1.0545718176461565e-34
-k=1.380649e-23
-e=1.602176634e-19
-m_e=9.1093837015e-31
+hbar = 1.0545718176461565e-34
+k = 1.380649e-23
+e = 1.602176634e-19
+m_e = 9.1093837015e-31
 KNOWN_CTYPES = {
     1: "output hc2(t) for t=0..1 using Nt t-steps (plus approximation)",
     100: "full fluctuation conductivity calculation using t,h",
@@ -73,6 +73,7 @@ KNOWN_PARAMS = {
     "Tc0tauphi": "[float]  value of Tc0*tau_phi",
     "delta": "[float] value of delta=pi/(8*t*Tc0tauphi), if set overrides Tc0tauphi",
 }
+
 
 def get_fscope_executable() -> Path:
     """Get the path to the FSCOPE executable based on the operating system."""
@@ -117,6 +118,7 @@ def fluc_dimless(t: np.ndarray, h: np.ndarray, Tc_tau: np.ndarray, Tc_tauphi: np
     """
     return mc_sigma_parallel(t, h, Tc_tau, Tc_tauphi)
 
+
 def hc2(t: np.ndarray) -> np.ndarray:
     """Calculate the upper critical field.
 
@@ -130,6 +132,7 @@ def hc2(t: np.ndarray) -> np.ndarray:
 
     """
     return hc2_parallel(t)
+
 
 def _fscope_executable(params: dict) -> list:
     """Calculate the paraconductivity using the FSCOPE program.
@@ -148,20 +151,26 @@ def _fscope_executable(params: dict) -> list:
             [
                 "No computation type specified",
                 "Include 'ctype' in the params dictionary with one of the following values:",
-            ] + [f"{key}: {value}" for key, value in KNOWN_CTYPES.items()],
+            ]
+            + [f"{key}: {value}" for key, value in KNOWN_CTYPES.items()],
         )
         raise ValueError(message)
     # if ctype not known
     unknown_params = [k for k in params if k not in KNOWN_PARAMS]
     if unknown_params:
-        message = "\n".join([
-            "Unknown parameters:", "Please use the following keys for the params dictionary:", *unknown_params,
-        ])
+        message = "\n".join(
+            [
+                "Unknown parameters:",
+                "Please use the following keys for the params dictionary:",
+                *unknown_params,
+            ],
+        )
         raise ValueError(message)
     # Sanitize and prepare the command arguments
     command = [FSCOPE_EXECUTABLE] + [f"{k}={shlex.quote(str(v))}" for k, v in params.items()]
-    output = subprocess.check_output(command)
+    output = subprocess.check_output(command, shell=False)
     return output.decode().splitlines()
+
 
 def fscope_full(params: dict | None = None) -> dict:
     """Calculate paraconductivity using the FSCOPE executable program.
@@ -185,7 +194,8 @@ def fscope_full(params: dict | None = None) -> dict:
             [
                 "Usage of fluctuoscopy, using FLUCTUOSCOPE version 2.1:",
                 "Add params to the function as a dictionary using the following keys:",
-            ] + output[5:],
+            ]
+            + output[5:],
         )
         raise ValueError(message)
 
@@ -202,6 +212,7 @@ def fscope_full(params: dict | None = None) -> dict:
     result["header"] = header[:-1]
     result.update(dict(zip(col_names, data)))
     return result
+
 
 def fscope(
     Ts: float | np.ndarray,
@@ -229,10 +240,10 @@ def fscope(
         tuple[np.ndarray, dict]: Resistance in Ohms and dictionary of contributions
 
     """
-    t = Ts/Tc
-    Tc_tau = Tc*tau*k/hbar
-    tau_phi = tau_phi0*Ts**alpha
-    Tc_tauphi = Tc*tau_phi*k/hbar
+    t = Ts / Tc
+    Tc_tau = Tc * tau * k / hbar
+    tau_phi = tau_phi0 * Ts**alpha
+    Tc_tauphi = Tc * tau_phi * k / hbar
 
     # make sure all inputs are arrays, find the longest array
     lens = set()
@@ -256,25 +267,25 @@ def fscope(
     # Fluctuation components in units of G0
     results = fluc_dimless(t, h, Tc_tau, Tc_tauphi)
     results = {key: np.array(val) for key, val in results.items()}
-    fluc_total = (results["al"] + results["mtsum"] + results["mtint"] + results["dos"] + results["dcr"])
+    fluc_total = results["al"] + results["mtsum"] + results["mtint"] + results["dos"] + results["dcr"]
     # WL and WAL already in Ohms^-1
-    WL = weak_localization(tau,tau_phi)
-    WAL = weak_antilocalization(tau_SO,tau_phi) if tau_SO is not None else np.zeros(max_len)
-    conversion = e**2/hbar
-    sigma0=1/R0
-    R: np.ndarray = ~results["sc"]/(sigma0 + fluc_total*conversion + WL + WAL)
+    WL = weak_localization(tau, tau_phi)
+    WAL = weak_antilocalization(tau_SO, tau_phi) if tau_SO is not None else np.zeros(max_len)
+    conversion = e**2 / hbar
+    sigma0 = 1 / R0
+    R: np.ndarray = ~results["sc"] / (sigma0 + fluc_total * conversion + WL + WAL)
     results_dict = {
-        "AL": results["al"]*conversion,
-        "MTsum": results["mtsum"]*conversion,
-        "MTint": results["mtint"]*conversion,
-        "MT": (results["mtsum"] + results["mtint"])*conversion,
-        "DOS": results["dos"]*conversion,
-        "DCR": results["dcr"]*conversion,
-        "Fluctuation_tot": fluc_total*conversion,
+        "AL": results["al"] * conversion,
+        "MTsum": results["mtsum"] * conversion,
+        "MTint": results["mtint"] * conversion,
+        "MT": (results["mtsum"] + results["mtint"]) * conversion,
+        "DOS": results["dos"] * conversion,
+        "DCR": results["dcr"] * conversion,
+        "Fluctuation_tot": fluc_total * conversion,
         "WL": WL,
         "WAL": WAL,
         "SC": results["sc"],
-        "Total": fluc_total*conversion + WL + WAL,
+        "Total": fluc_total * conversion + WL + WAL,
     }
     return R, results_dict
 
@@ -290,7 +301,8 @@ def weak_localization(tau: float | np.ndarray, tau_phi: float | np.ndarray) -> n
         array: The correction to conductance in Siemens (Ohms^-1)
 
     """
-    return np.array(-e**2/(2*pi**2*hbar)*np.log(tau_phi/tau))
+    return np.array(-(e**2) / (2 * pi**2 * hbar) * np.log(tau_phi / tau))
+
 
 def weak_antilocalization(tau_SO: float | np.ndarray, tau_phi: np.ndarray) -> np.ndarray:
     """Calculate the weak antilocalization correction to the conductance.
@@ -303,13 +315,14 @@ def weak_antilocalization(tau_SO: float | np.ndarray, tau_phi: np.ndarray) -> np
         array: The correction to conductance in Siemens (Ohms^-1)
 
     """
-    return e**2 / (2*pi**2*hbar) * np.log((1+tau_phi/tau_SO) * (1+2*tau_phi/tau_SO)**0.5)
+    return e**2 / (2 * pi**2 * hbar) * np.log((1 + tau_phi / tau_SO) * (1 + 2 * tau_phi / tau_SO) ** 0.5)
+
 
 def simplified_al(
     Ts: np.ndarray,
     Tc: float,
     R0: float,
-    C: float = e**2/(16*hbar),
+    C: float = e**2 / (16 * hbar),
 ) -> np.ndarray:
     """Simplified form of Aslamasov-Larkin fluctuation conductance contribution.
 
@@ -323,4 +336,4 @@ def simplified_al(
         array: Sheet conductance in Siemens (Ohms^-1)
 
     """
-    return 1/(1/R0 + C/np.log(Ts/Tc)) * np.heaviside(Ts-Tc,0)
+    return 1 / (1 / R0 + C / np.log(Ts / Tc)) * np.heaviside(Ts - Tc, 0)
