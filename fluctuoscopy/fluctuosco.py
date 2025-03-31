@@ -27,11 +27,12 @@ from __future__ import annotations
 import platform
 import shlex
 import subprocess
+from importlib import resources
 from pathlib import Path
+from warnings import warn
 
 import numpy as np
-
-from fluctuoscopy.fluc_rs import hc2_parallel, mc_sigma_parallel
+from fluc_rs import hc2_parallel, mc_sigma_parallel
 
 pi = np.pi
 hbar = 1.0545718176461565e-34
@@ -75,18 +76,26 @@ KNOWN_PARAMS = {
 }
 
 
-def get_fscope_executable() -> Path:
+def get_fscope_executable() -> Path | None:
     """Get the path to the FSCOPE executable based on the operating system."""
     system = platform.system()
-    base_dir = Path(__file__).resolve().parent
     if system == "Linux":
-        return base_dir / "bin" / "FSCOPE_linux"
-    if system == "Darwin":
-        return base_dir / "bin" / "FSCOPE_mac"
-    if system == "Windows":
-        return base_dir / "bin" / "FSCOPE_windows.exe"
-    msg = f"Unsupported operating system: {system}"
-    raise RuntimeError(msg)
+        executable_name = "FSCOPE_linux"
+    elif system == "Darwin":
+        executable_name = "FSCOPE_mac"
+    elif system == "Windows":
+        executable_name = "FSCOPE_windows.exe"
+    else:
+        msg = f"Unsupported operating system: {system}"
+        raise RuntimeError(msg)
+    with resources.as_file(resources.files("fluctuoscopy.bin").joinpath(executable_name)) as bin_path:
+        if not bin_path.exists():
+            warn("No FSCOPE executable found, fscope_full() will not work.", stacklevel=2)
+            return None
+        if system in {"Linux", "Darwin"}:
+            subprocess.run(["chmod", "+x", str(bin_path)])
+        print(f"Executable path: {bin_path}")
+        return bin_path
 
 
 # Get the path to the FSCOPE executable once at import time
@@ -167,6 +176,10 @@ def _fscope_executable(params: dict) -> list:
         )
         raise ValueError(message)
     # Sanitize and prepare the command arguments
+    if FSCOPE_EXECUTABLE is None:
+        msg = "FSCOPE executable not found."
+        raise RuntimeError(msg)
+    assert isinstance(FSCOPE_EXECUTABLE, Path)  # noqa: S101
     command = [FSCOPE_EXECUTABLE] + [f"{k}={shlex.quote(str(v))}" for k, v in params.items()]
     output = subprocess.check_output(command, shell=False)
     return output.decode().splitlines()
