@@ -8,7 +8,7 @@ description = "A Python wrapper with extras for the FSCOPE program, written by A
 license = {text = "MIT AND BSD-2-CLAUSE"}
 readme = "README.md"
 requires-python = ">=3.9"
-version = "0.1.0"
+version = "0.2.0"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
