@@ -23,6 +23,7 @@ k_B = 1.38064852e-23  # noqa: N816
 pi = np.pi
 
 
+@pytest.mark.legacy
 class TestFscopeFullFunc(unittest.TestCase):
     """Tests for fscope_executable function."""
 
@@ -59,7 +60,7 @@ class TestFscopeFullFunc(unittest.TestCase):
         ]
         np.testing.assert_array_almost_equal(result, expected, decimal=6)
 
-
+@pytest.mark.legacy
 class TestFscope(unittest.TestCase):
     """Tests for fscope function."""
 

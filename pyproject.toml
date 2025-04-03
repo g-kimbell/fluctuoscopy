@@ -36,6 +36,11 @@ include = ["fluctuoscopy/bin/*", "tests/*"]
 python-packages = ["fluctuoscopy"]
 editable = true
 
+[tool.pytest.ini_options]
+markers = [
+    "legacy: marks tests of the legacy executable (deselect with '-m \"not legacy\"')",
+]
+
 [tool.ruff]
 line-length = 120
 lint.select = ["ALL"]
