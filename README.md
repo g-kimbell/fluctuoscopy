@@ -7,36 +7,50 @@ A Python wrapper for the C++ [FSCOPE](https://github.com/andreasglatz/FSCOPE) pr
 
 ## Installation
 
-Clone the repo, navigate to its directory and use
+Pip install with
 ```
 pip install git+https://github.com/g-kimbell/fluctuoscopy.git
 ```
 
 ## Usage
 
-To see possible parameters use
+Calculate R(T) from the fscope function in SI units:
 ```
 import fluctuoscopy
-fluctuoscopy.fscope({})
+R, contribs = fluctuoscopy.fscope(T, Tc, tau, tau_phi0, R0, alpha, tau_SO)
 ```
-The fscope function accepts a dictionary e.g.
+Where the inputs are floats or numpy arrays, and the outputs are an array of resistances and a dictionary of conductivity contributions, in SI units.
+
+You can also do dimensionless calculations, returning conductivity contributions in units G0:
 ```
-fluctuoscopy.fscope({'ctype':100,'hmin':0.01})
+contribs = fluctuoscopy.fluc_dimless(t, h, Tc_tau, Tc_tauphi)
 ```
-This will return a dictionary of calculated fluctuation contributions.
+
+These calculations have optimised Rust ports. To see other possible calculations use
+```
+fluctuoscopy.fscope_full({})
+```
+Where parameters are passed in as a dictionary, see the FSCOPE documentation for a full list of calculations and parameters.
+
+Note that this uses a pre-compiled version of FSCOPE, we compiled for Windows x86, macos x86 and arm64, and linux x86. If you are on a different platform, you will have compile FSCOPE yourself.
 
 ## Development and testing
 
-For development/testing, go to a folder and clone the repo
+For development/testing, clone the repo
 ```
 git clone https://github.com/g-kimbell/fluctuoscopy
 ```
-Then go inside the repo and install in editable mode
+Then go inside the repo and install in editable mode with dev dependencies
 ```
 cd fluctuoscopy
+pip install -e .[dev]
+```
+The project uses maturin, if you edit the Rust code you will have to recompile the binaries then reinstall the module
+```
+maturin build --release
 pip install -e .
 ```
-You can then make changes. For testing install and run pytest
+For testing install and run pytest
 ```
 pip install pytest
 pytest
