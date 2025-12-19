@@ -2,7 +2,8 @@ use num_complex::*;
 use polygamma::polygamma;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use pyo3::PyObject;
+use pyo3::Py;
+use pyo3::types::PyAny;
 use pyo3::PyResult;
 use rayon::prelude::*;
 use spfunc::gamma::digamma as complex_digamma;
@@ -11,7 +12,7 @@ use std::vec::Vec;
 
 
 #[pyfunction]
-pub fn mc_sigma(py: Python, t: f64, h: f64, tctau: f64, tctauphi: f64) -> PyResult<PyObject> {
+pub fn mc_sigma(py: Python, t: f64, h: f64, tctau: f64, tctauphi: f64) -> PyResult<Py<PyAny>> {
     let (al, mtsum, mtint, dos, dcr, sc) = calculate_mc_sigma(t, h, tctau, tctauphi);
 
     let dict = PyDict::new(py);
@@ -32,7 +33,7 @@ pub fn mc_sigma_parallel(
     h_values: Vec<f64>,
     tctau_values: Vec<f64>,
     tctauphi_values: Vec<f64>,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     // Check that all input arrays have the same length
     let n = t_values.len();
     assert_eq!(
